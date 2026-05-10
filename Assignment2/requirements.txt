@@ -1,0 +1,10 @@
+ipykernel
+numpy
+matplotlib
+scikit-learn
+Pillow
+torch
+torchvision
+nbformat
+thop
+gdown
