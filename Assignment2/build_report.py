@@ -321,17 +321,17 @@ def build() -> None:
          "patience (15 epochs without val-AUC improvement) for every configuration in "
          "Experiments 1 and 2. We adopted epochs rather than FLOPs because the input "
          "pipeline and image size are identical across configurations, making epochs a "
-         "fair proxy; early stopping prevents fast configs from being penalised by an "
+         "fair proxy, early stopping prevents fast configs from being penalised by an "
          "unnecessarily long ceiling and prevents slow configs from reading as "
          "'diverging' when they were just under-trained. **Hyperparameter search "
          "budget**: K = 4 trials per configuration, spent entirely on the margin (we "
-         "did not also sweep the learning rate; we fixed Adam at lr = 1e-3 across all "
+         "did not also sweep the learning rate, we fixed Adam at lr = 1e-3 across all "
          "configs). **Input pipeline & augmentation**: identical resize, normalization, "
          "and the affine-distortion policy from Koch et al. §3.2 for every "
          "configuration within an experiment. **Evaluation episodes**: a single "
          "deterministic set of N-way one-shot episodes (per N) is generated once and "
          "reused across every model. **Seeds**: SEED = 42 for headline single-run "
-         "numbers; SEEDS = (0, 1, 2) for the multi-seed re-runs of the best model "
+         "numbers, SEEDS = (0, 1, 2) for the multi-seed re-runs of the best model "
          "per experiment.")
 
     # --- §2 Dataset ---------------------------------------------------------
@@ -353,7 +353,7 @@ def build() -> None:
          "val_frac = 0.1, which makes val-AUC dominated by sampling noise. We therefore "
          "**regenerate** validation negatives by sampling pairs of distinct val "
          "identities until the count matches val positives. Final split: train "
-         "+978 / −887, val +122 / −122, train/val identity overlap = 0.")
+         "+978 / -887, val +122 / -122, train/val identity overlap = 0.")
 
     # --- §3 Methodology / Experimental process (grader's explicit request) --
     heading(doc, "3. Methodology and experimental process", level=1)
@@ -378,7 +378,7 @@ def build() -> None:
               "(and the literature confirms) have the largest single effect on training "
               "stability for metric losses. Adam was fixed at lr = 1e-3 with no schedule. "
               "Margin grids: contrastive {0.5, 1.0, 1.5, 2.0} on L2-normalised "
-              "embeddings (effective range [0, 2]); triplet {0.1, 0.2, 0.3, 0.5} around "
+              "embeddings (effective range [0, 2]), triplet {0.1, 0.2, 0.3, 0.5} around "
               "the FaceNet default α = 0.2. Each trial ran for EPOCHS/3 = 20 epochs "
               "(short-schedule sweep), and the margin with the best validation "
               "verification accuracy was retrained for the full budget. The sweep chose "
@@ -396,25 +396,25 @@ def build() -> None:
                 "the window — the hardest semi-hard. After the fix, semi-hard and "
                 "random sit within noise of each other (see Experiment 1).")
     bullet(doc, "**Validation negatives.** The original identity-filter retained only 13 "
-                "val negatives; val-AUC became too noisy to use for model selection or "
+                "val negatives, val-AUC became too noisy to use for model selection or "
                 "threshold choice. We rebalanced by regenerating val negatives within "
                 "val identities. After the fix, the val→test AUC gap for the best "
                 "model dropped from ~0.11 to ~0.01.")
     bullet(doc, "**Early-stop patience.** Initially 10. Triplet runs with strict-skip "
                 "semi-hard mining have a sparse-gradient warm-up phase that can stall "
-                "val-AUC for several epochs; we raised patience to 15 to avoid stopping "
+                "val-AUC for several epochs, we raised patience to 15 to avoid stopping "
                 "before the in-batch semi-hard window populates.")
 
     para(doc, "**Threshold selection.** Verification accuracy is reported at the "
-              "threshold that maximises Youden's J statistic (TPR − FPR) on the "
-              "validation ROC; the test set is never used to pick the threshold. "
-              "Same protocol for every model (Koch BCE uses P(same) from the head; "
+              "threshold that maximises Youden's J statistic (TPR - FPR) on the "
+              "validation ROC, the test set is never used to pick the threshold. "
+              "Same protocol for every model (Koch BCE uses P(same) from the head, "
               "contrastive and triplet use negative L2 distance on L2-normalised "
-              "embeddings; frozen ImageNet uses cosine similarity).")
+              "embeddings, frozen ImageNet uses cosine similarity).")
 
     para(doc, "**One-shot protocol.** 250 episodes per N ∈ {2, 5, 20}, built once with "
               "SEED = 42 from test identities only and shared across every model. Each "
-              "episode is (query, [N supports], correct_idx); the model is correct iff "
+              "episode is (query, [N supports], correct_idx), the model is correct iff "
               "the same-identity support has the highest similarity to the query.")
 
     para(doc, "**Tools and instrumentation.** Parameter counts and MACs are reported "
@@ -433,21 +433,21 @@ def build() -> None:
 
     para(doc, "**How each loss shapes the embedding.** **Koch BCE on L1** learns a "
               "scalar similarity directly through a Linear(EMBED_DIM, 1) head on the "
-              "elementwise |z_a − z_b|; the embedding space has no native metric, only "
+              "elementwise |z_a - z_b|, the embedding space has no native metric, only "
               "the post-hoc weighted-L1 head ranks pairs. **Contrastive** induces a "
               "Euclidean geometry: same-identity points pulled toward distance 0, "
               "different-identity points pushed at least to the margin m. **Triplet** "
               "enforces a relative constraint d(a, p) + α ≤ d(a, n) without pinning an "
               "absolute scale, which is why we L2-normalise embeddings before computing "
               "distances. **Role of margin.** For contrastive, m sets the absolute "
-              "scale of inter-class separation; too small and the loss collapses, too "
+              "scale of inter-class separation, too small and the loss collapses, too "
               "large and the loss can never reach zero. For triplet, α sets the minimum "
-              "*relative* separation required between a positive and a negative; with "
+              "*relative* separation required between a positive and a negative, with "
               "L2-normalised embeddings (max d² = 4), the FaceNet default α = 0.2 was "
               "chosen by our K = 4 margin sweep. **Why mining matters.** Random "
               "triplets are mostly trivial after a few epochs (most negatives are "
               "already at d > d(a, p) + α and contribute zero gradient), so the model "
-              "stops learning; mining selects informative triplets that still violate "
+              "stops learning, mining selects informative triplets that still violate "
               "the margin.")
 
     small_table(doc,
@@ -466,12 +466,12 @@ def build() -> None:
               "the monotonic loss ordering predicted by H1 is confirmed. The Koch BCE "
               "baseline barely beats chance on N=20 one-shot (0.104 vs random 0.05), "
               "confirming that a learned scalar similarity head produces embeddings "
-              "whose pairwise structure is weak. Triplet (semi) achieves 0.904 AUC; "
+              "whose pairwise structure is weak. Triplet (semi) achieves 0.904 AUC, "
               "triplet (rand) sits at 0.914 on this seed — random tied or slightly "
               "beat semi-hard, contradicting H2. The likely cause is our strict-skip "
               "semi-hard implementation: for many anchors the window "
               "(d_ap, d_ap + α) is empty after a few epochs, so those triplets "
-              "contribute no gradient; random sampling occasionally lands on a true "
+              "contribute no gradient, random sampling occasionally lands on a true "
               "hard negative and gets a full-strength update. The 3-seed mean for "
               "semi-hard is 0.894 ± 0.008 (Section 8), comfortably covering the "
               "random-triplet single-seed result. We interpret this as: mining is "
@@ -497,7 +497,7 @@ def build() -> None:
     para(doc, "Table 2: Parameter / MACs / FLOPs (thop on 1×1×105×105 for Koch, "
               "1×3×112×112 for ResNet). Parameter difference: 4.3%, well inside the "
               "±20% matching constraint. Koch has higher MACs per forward pass because "
-              "of its larger 105×105 input and 10×10 first kernel; ResNet has more "
+              "of its larger 105×105 input and 10×10 first kernel, ResNet has more "
               "depth but smaller spatial footprint at 112×112.")
 
     small_table(doc,
@@ -514,7 +514,7 @@ def build() -> None:
               "metric. Residual connectivity did NOT buy a measurable advantage on "
               "LFW-a at this scale. Plausible explanation: ~1,900 training identities "
               "with a median of 1 image each does not provide enough data to exploit "
-              "the inductive bias residual blocks offer; the heavier first-conv stack "
+              "the inductive bias residual blocks offer, the heavier first-conv stack "
               "in Koch happens to capture enough of the face-discriminative low-level "
               "structure. The result was robust across seeds (Section 8): Koch+triplet "
               "0.894 ± 0.008 AUC vs ResNet+triplet 0.881 ± 0.005 AUC (a >1σ separation), "
@@ -528,7 +528,7 @@ def build() -> None:
     heading(doc, "6. Experiment 3 — Frozen pretrained baseline", level=1)
     para(doc, "Frozen ImageNet-pretrained ResNet-18 (final FC replaced with Identity, "
               "all parameters frozen, no fine-tuning). Embeddings are the raw 512-D "
-              "backbone features; pairs scored by cosine similarity; same test pairs "
+              "backbone features, pairs scored by cosine similarity, same test pairs "
               "and one-shot episodes as Experiments 1 and 2. **Caveat on the input "
               "pipeline**: LFW-a is provided as single-channel images and ImageNet's "
               "ResNet-18 expects 3-channel RGB normalised with ImageNet mean/std. We "
@@ -561,10 +561,10 @@ def build() -> None:
         ["Model", "Acc", "AUC", "thr", "N=2", "N=5", "N=20"],
         [
             ["Koch BCE",                   "0.647", "0.686", "+0.499", "0.724", "0.392", "0.104"],
-            ["Contrastive",                "0.704", "0.761", "−0.247", "0.768", "0.432", "0.284"],
-            ["Triplet (semi-hard)",        "0.834", "0.904", "−1.134", "0.940", "0.784", "0.552"],
-            ["Triplet (random ablation)",  "0.813", "0.914", "−0.874", "0.920", "0.768", "0.524"],
-            ["ResNet-18 (scratch)",        "0.810", "0.895", "−0.949", "0.932", "0.756", "0.508"],
+            ["Contrastive",                "0.704", "0.761", "-0.247", "0.768", "0.432", "0.284"],
+            ["Triplet (semi-hard)",        "0.834", "0.904", "-1.134", "0.940", "0.784", "0.552"],
+            ["Triplet (random ablation)",  "0.813", "0.914", "-0.874", "0.920", "0.768", "0.524"],
+            ["ResNet-18 (scratch)",        "0.810", "0.895", "-0.949", "0.932", "0.756", "0.508"],
             ["ResNet-18 (frozen ImageNet)","0.684", "0.763", "+0.757", "0.752", "0.540", "0.312"],
         ])
     para(doc, "Table 4: Single-seed master table on the same test pairs and the same "
@@ -580,7 +580,7 @@ def build() -> None:
         rand_clause = (f" The val-AUC argmax across ALL single-seed candidates "
                        f"would have picked the random-triplet ablation "
                        f"(val_AUC = {nums['rand_val_auc']:.3f}, "
-                       f"test_AUC = {nums['rand_test_auc']:.3f}); the assignment "
+                       f"test_AUC = {nums['rand_test_auc']:.3f}), the assignment "
                        f"explicitly disqualifies random sampling as a triplet "
                        f"baseline (permitted only as an ablation), so we "
                        f"analyse the highest-val-AUC PERMITTED model instead. "
@@ -595,14 +595,14 @@ def build() -> None:
                           "(semi-hard) at 0.894 ± 0.008 beats ResNet-18+"
                           "triplet at 0.881 ± 0.005. We retain the single-"
                           "seed val-AUC selection rule here to avoid using "
-                          "the test set in any selection step; the embedding "
+                          "the test set in any selection step, the embedding "
                           "analysis is therefore on the val-AUC winner, while "
                           "§5/§8/§11 use the multi-seed-mean winner. At ~1σ "
                           "separation, the two embedding spaces are likely "
                           "qualitatively similar (both are triplet semi-hard).")
     para(doc, f"**Embedding analysis for the best permitted model** (selected by "
               f"validation AUC over the assignment-permitted baselines: "
-              f"**{nums['best_name']}**; val_AUC = {nums['best_val_auc']:.3f}, "
+              f"**{nums['best_name']}**, val_AUC = {nums['best_val_auc']:.3f}, "
               f"test_AUC = {nums['best_test_auc']:.3f}).{rand_clause}"
               f"{multiseed_note} 2D t-SNE of test-set embeddings over 25 "
               f"sampled test identities (up to 8 images each) in Appendix "
@@ -620,7 +620,7 @@ def build() -> None:
               f"Appendix Fig. A6), though the upper tail of intra and lower "
               f"tail of inter overlap meaningfully — exactly the source of "
               f"the residual verification errors "
-              f"(1 − AUC ≈ {one_minus_auc:.2f} on test).")
+              f"(1 - AUC ≈ {one_minus_auc:.2f} on test).")
 
     # --- §8 Multi-seed validation ------------------------------------------
     heading(doc, "8. Multi-seed validation of the best model per experiment", level=1)
@@ -664,7 +664,7 @@ def build() -> None:
     # --- §10 Threats to validity --------------------------------------------
     heading(doc, "10. Threats to validity", level=1)
     para(doc, "**What would change our conclusions.** A longer LR schedule (cosine or "
-              "step) could close the gap between Koch BCE and the metric losses; "
+              "step) could close the gap between Koch BCE and the metric losses, "
               "embedding dim 128 was chosen to match across backbones and could be "
               "raised to 256/512 — both choices would raise absolute AUC without "
               "necessarily changing the head-to-head ordering. Our semi-hard mining "
@@ -675,9 +675,9 @@ def build() -> None:
               "subgroup performance (gender, ethnicity, age band) — LFW is known to "
               "be biased toward English-speaking, mostly-male, mostly-frontal "
               "celebrity faces. **What seed and budget choices may have hidden.** Only "
-              "3 seeds for the best per-experiment model; the standard deviations are "
+              "3 seeds for the best per-experiment model, the standard deviations are "
               "themselves imprecisely estimated. Random-triplet was reported single-"
-              "seed; if multi-seeded its mean might land below semi-hard. Early "
+              "seed, if multi-seeded its mean might land below semi-hard. Early "
               "stopping at patience = 15 epochs might still curtail a slow second-"
               "wind for triplet semi-hard — extending patience would be the next "
               "ablation. All thresholds are chosen on validation, never on test.")
@@ -685,8 +685,8 @@ def build() -> None:
     # --- §11 Conclusions ----------------------------------------------------
     heading(doc, "11. Conclusions", level=1)
     bullet(doc, "**Loss matters more than backbone at this scale.** Koch BCE → "
-                "Koch+triplet is +0.218 AUC; Koch+triplet → ResNet+triplet is "
-                "−0.013 AUC across 3 seeds. The loss/sampling axis dominates by an "
+                "Koch+triplet is +0.218 AUC, Koch+triplet → ResNet+triplet is "
+                "-0.013 AUC across 3 seeds. The loss/sampling axis dominates by an "
                 "order of magnitude.")
     bullet(doc, "**Mining bought no measurable advantage under strict-skip semi-hard.** "
                 "Random sampling tied with semi-hard. A softer mining policy is the "
@@ -706,10 +706,10 @@ def build() -> None:
               "figures here exactly (extracted from the executed notebook).")
 
     fig(doc, figs["dataset_imgs_per_id"],
-        "Fig. A1 — Distribution of images per training identity. Heavy tail; median = 1.")
+        "Fig. A1 — Distribution of images per training identity. Heavy tail, median = 1.")
 
     fig(doc, figs["exp1_roc_and_losses"],
-        "Fig. A2 — Experiment 1: ROC overlay (all four losses) on the left; training "
+        "Fig. A2 — Experiment 1: ROC overlay (all four losses) on the left, training "
         "loss (middle) and validation loss (right) for the same four runs. Different "
         "losses live on different scales — the shapes are comparable, the absolute "
         "magnitudes across rows are not.")
@@ -737,13 +737,13 @@ def build() -> None:
     fig_or_placeholder("tsne_best",
         "Fig. A5 — 2D t-SNE of best-model test embeddings, 25 sampled identities × "
         "up to 8 images per identity. Legend (right) names each identity by its "
-        "LFW folder name. Most identities form tight clusters; the few smeared "
+        "LFW folder name. Most identities form tight clusters, the few smeared "
         "clusters correspond to the failure cases.", width_in=6.5,
         cell_hint="the t-SNE cell (#72)")
 
     fig_or_placeholder("intra_inter_distances",
         "Fig. A6 — Intra- vs inter-class L2 distance distributions (best model). "
-        "Inter-class mean is well above intra-class mean; tail overlap is the "
+        "Inter-class mean is well above intra-class mean, tail overlap is the "
         "source of test errors.",
         cell_hint="the intra/inter-distance cell (#73)")
 
@@ -757,7 +757,7 @@ def build() -> None:
         cell_hint="the failure-cases cell (#75)")
 
     fig(doc, figs["multiseed_bars"],
-        "Fig. A9 — Multi-seed validation. One panel per metric; bar = mean across "
+        "Fig. A9 — Multi-seed validation. One panel per metric, bar = mean across "
         "SEEDS = (0, 1, 2), error bar = ±1 std, black dots = individual seeds, red × "
         "= the SEED = 42 headline value reported in the body. Koch+triplet beats "
         "ResNet-18+triplet on every metric and shows lower seed variance.")

@@ -47,7 +47,7 @@ cells = []
 
 # --- Header ----------------------------------------------------------------- #
 cells.append(md("""
-    # Deep Learning – Assignment 2
+    # Deep Learning - Assignment 2
     ## Face Verification with Siamese / Metric-Learning Networks
 
     Submitters:
@@ -64,7 +64,7 @@ cells.append(md("""
     This notebook implements and compares three families of Siamese / metric-learning
     face-verification systems on the aligned LFW (LFW-a) dataset, following the
     Koch, Zemel & Salakhutdinov (2015) baseline and modern extensions
-    (contrastive loss – Hadsell et al. 2006; triplet loss with semi-hard mining –
+    (contrastive loss - Hadsell et al. 2006; triplet loss with semi-hard mining -
     Schroff et al. 2015).
 
     The notebook is organized around the three **required experiments**:
@@ -209,7 +209,7 @@ cells.append(code("""
 
 # --- Section 1 — Dataset --------------------------------------------------- #
 cells.append(md("""
-    # Section 1 – Dataset (LFW-a)
+    # Section 1 - Dataset (LFW-a)
 
     We use the **aligned LFW variant (LFW-a)** from
     https://talhassner.github.io/home/projects/lfwa/index.html, with the
@@ -453,7 +453,7 @@ cells.append(md("""
 
     **Augmentation.** Train transforms apply the Koch-paper affine distortions
     (`AFFINE_AUG` above). Val/test transforms are deterministic. The same
-    augmentation policy is applied to every configuration in Experiments 1–2,
+    augmentation policy is applied to every configuration in Experiments 1-2,
     keeping the comparison honest.
 """))
 
@@ -542,20 +542,20 @@ cells.append(code("""
 
 # --- Section 2 — Backbones ------------------------------------------------- #
 cells.append(md("""
-    # Section 2 – Backbones
+    # Section 2 - Backbones
 
     Two backbones, deliberately **parameter-matched** to within ±20% so Experiment 2
     isolates *architecture* (residual vs. plain stacking), not *capacity*.
 
     | Backbone           | Embedding dim | Approx. params |
     |--------------------|--------------|----------------|
-    | Koch CNN (slimmed) | 128          | ~10–11M        |
+    | Koch CNN (slimmed) | 128          | ~10-11M        |
     | ResNet-18 (scratch)| 128          | ~11.7M         |
 
     Surgery applied:
 
     - **Koch.** Reduce the flatten→FC layer from 4096 → 1024 to bring it from
-      ~38M down to ~10–11M parameters. A `nn.Linear(1024, EMBED_DIM)` head produces
+      ~38M down to ~10-11M parameters. A `nn.Linear(1024, EMBED_DIM)` head produces
       the embedding.
     - **ResNet-18.** Standard `torchvision.models.resnet18()` initialised from
       scratch (`weights=None`); replace the final FC with `nn.Linear(512, EMBED_DIM)`.
@@ -644,7 +644,7 @@ cells.append(code("""
 
 # --- Section 3 — Losses ----------------------------------------------------- #
 cells.append(md("""
-    # Section 3 – Loss functions
+    # Section 3 - Loss functions
 
     Three losses are required:
 
@@ -655,7 +655,7 @@ cells.append(md("""
        margin `m` is tuned on validation. Pulls positives together, pushes
        negatives apart at least to `m`.
     3. **Triplet loss with semi-hard mining (Schroff et al., 2015).** L2 distance;
-       margin `α`. Mining is implemented in-batch: for each anchor–positive pair,
+       margin `α`. Mining is implemented in-batch: for each anchor-positive pair,
        choose the hardest negative satisfying
        `d(a,p) < d(a,n) < d(a,p) + α` ("semi-hard"). Random-triplet sampling is
        reported separately as an ablation to show what mining buys.
@@ -728,7 +728,7 @@ cells.append(md("""
 
     $$\\mathcal{L}_{triplet}(a, p, n) = \\max\\bigl(0,\\, \\lVert z_a - z_p \\rVert_2^2 - \\lVert z_a - z_n \\rVert_2^2 + \\alpha\\bigr)$$
 
-    **Semi-hard** negatives, given an anchor–positive distance $d_{ap}$, are
+    **Semi-hard** negatives, given an anchor-positive distance $d_{ap}$, are
     those negatives with $d_{ap} < d_{an} < d_{ap} + \\alpha$. Mining is done
     in-batch using L2-normalized embeddings.
 
@@ -800,7 +800,7 @@ cells.append(code("""
 
 # --- Section 4 — Training and evaluation utilities ------------------------- #
 cells.append(md("""
-    # Section 4 – Training and evaluation utilities
+    # Section 4 - Training and evaluation utilities
 
     Centralized helpers reused across experiments so every model is trained and
     evaluated *the same way*. Differences between configurations come purely from
@@ -1183,7 +1183,7 @@ cells.append(code("""
 
 # --- Section 5 — Experiment 1: Loss ---------------------------------------- #
 cells.append(md("""
-    # Section 5 – Experiment 1: Loss function
+    # Section 5 - Experiment 1: Loss function
 
     Backbone fixed to the **slimmed Koch CNN**. Three losses compared:
 
@@ -1355,7 +1355,7 @@ cells.append(code("""
 cells.append(md("""
     ### 5.3 Run: Triplet loss with semi-hard mining (Schroff et al., 2015)
 
-    For each anchor–positive `(a, p)` we mine an in-batch negative `n` with
+    For each anchor-positive `(a, p)` we mine an in-batch negative `n` with
     `d(a, p) < d(a, n) < d(a, p) + α`. **Why mining matters:** with random
     negatives, most triplets satisfy the margin trivially, so their gradient is
     zero and the network never updates. Semi-hard negatives are the hardest
@@ -1464,7 +1464,7 @@ cells.append(code("""
 
 # --- Section 6 — Experiment 2: Backbone ------------------------------------ #
 cells.append(md("""
-    # Section 6 – Experiment 2: Backbone
+    # Section 6 - Experiment 2: Backbone
 
     Loss fixed to the **best loss from Experiment 1** (placeholder: triplet w/
     semi-hard mining). Backbones compared:
@@ -1604,12 +1604,12 @@ cells.append(code("""
 
 # --- Section 7 — Experiment 3: Frozen pretrained ResNet -------------------- #
 cells.append(md("""
-    # Section 7 – Experiment 3: Frozen pretrained-features baseline
+    # Section 7 - Experiment 3: Frozen pretrained-features baseline
 
     A "sanity floor": take a **frozen** ImageNet-pretrained ResNet-18, do **no**
     training and **no** fine-tuning, embed each LFW-a image, score pairs with
     cosine similarity. Same test pairs and the same one-shot episodes as
-    Experiments 1–2.
+    Experiments 1-2.
 
     If a trained model from Experiment 1 or 2 fails to beat this, we report it
     honestly and discuss in the report.
@@ -1636,9 +1636,9 @@ cells.append(code("""
 
 # --- Section 8 — Combined summary + ROC overlay --------------------------- #
 cells.append(md("""
-    # Section 8 – Combined summary table + ROC overlay
+    # Section 8 - Combined summary table + ROC overlay
 
-    A single table comparing **every** model in Experiments 1–3 on **every**
+    A single table comparing **every** model in Experiments 1-3 on **every**
     metric the assignment requires. Mean ± std across `SEEDS = (0, 1, 2)` is
     reported for the best model in each experiment in the report (the loop is
     not re-run inside this notebook for compute-budget reasons; code is shown).
@@ -1672,7 +1672,7 @@ cells.append(code("""
 
 # --- Section 9 — Embedding analysis --------------------------------------- #
 cells.append(md("""
-    # Section 9 – Required embedding analysis
+    # Section 9 - Required embedding analysis
 
     For the **best model overall** (placeholder: ResNet-18 trained from scratch
     with semi-hard triplet) we produce:
@@ -1786,7 +1786,7 @@ cells.append(code("""
 
 # --- Section 10 — Failure case analysis ----------------------------------- #
 cells.append(md("""
-    # Section 10 – Failure case analysis (best model)
+    # Section 10 - Failure case analysis (best model)
 
     The assignment requires **at least 6 misclassified pairs**: 3 false accepts
     (same predicted, different identity) and 3 false rejects (different predicted,
@@ -1835,7 +1835,7 @@ cells.append(code("""
 
 # --- Section 11 — Threats to validity ------------------------------------- #
 cells.append(md("""
-    # Section 11 – Threats to validity (notebook-side checklist)
+    # Section 11 - Threats to validity (notebook-side checklist)
 
     The full prose belongs in the report. Inline reminders:
 
@@ -1857,7 +1857,7 @@ cells.append(md("""
 
 # --- Section 12 — Multi-seed mean ± std runner ---------------------------- #
 cells.append(md("""
-    # Section 12 – Multi-seed mean ± std (best model per experiment)
+    # Section 12 - Multi-seed mean ± std (best model per experiment)
 
     For each experiment's best model, we re-run training with `SEEDS = (0, 1, 2)`
     and report mean ± std on verification accuracy / AUC / N-way one-shot. This
@@ -1968,7 +1968,7 @@ cells.append(md("""
 
 cells.append(code("""
     # Pull the single-seed (SEED=42) headline values for each recipe from the
-    # results dicts produced in Sections 5–6. The keys here must match the
+    # results dicts produced in Sections 5-6. The keys here must match the
     # recipe names used in `_to_run` above.
     _recipe_to_single_seed = {
         "koch_bce":       res_koch,
@@ -2021,7 +2021,7 @@ cells.append(code("""
 
 # --- Section 13 — Conclusions -------------------------------------------- #
 cells.append(md("""
-    # Section 13 – Conclusions
+    # Section 13 - Conclusions
 
     Summary of the findings, grounded in the master table (Section 8) and the
     multi-seed re-runs (Section 12). The discussion / framing is in the report.
