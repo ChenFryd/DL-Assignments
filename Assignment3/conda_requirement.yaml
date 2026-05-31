@@ -24,10 +24,17 @@ dependencies:
   - notebook
   - ipykernel
   - jupytext
-  - pretty-midi
-  - python-docx 
+  - python-docx
+  - pip
+  - pip:
+      - pretty-midi
 
 
 # Use:
-# conda env create -f Assignment3\conda_reqiremnt.ymal
+# cd Assignment3
+# conda env create -f conda_requirement.yaml
 # conda activate DL_A3_env
+
+
+# Jupytext
+# jupytext --sync assignment3.ipynb
