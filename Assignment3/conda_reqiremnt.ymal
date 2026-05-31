@@ -1,0 +1,33 @@
+name: DL_A3_env
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+ 
+  - numpy
+  - pandas
+  - scipy
+  - scikit-learn
+  - matplotlib
+  - seaborn
+  - tqdm
+  - nltk
+  - gensim
+  - pytorch
+  - torchvision
+  - torchaudio
+  - cpuonly
+  - tensorboard
+  - jupyterlab
+  - notebook
+  - ipykernel
+  - jupytext
+  - pretty-midi
+  - python-docx 
+
+
+# Use:
+# conda env create -f Assignment3\conda_reqiremnt.ymal
+# conda activate DL_A3_env
