@@ -1,0 +1,7 @@
+file_name,error
+Beastie_Boys_-_Girls.mid,KeySignatureError('Could not decode key with 1 flats and mode 255')
+Billy_Joel_-_Movin'_Out.mid,OSError('data byte must be in range 0..127')
+Billy_Joel_-_Pressure.mid,OSError('data byte must be in range 0..127')
+Brian_McKnight_-_On_The_Down_Low.mid,EOFError()
+Dan_Fogelberg_-_Leader_of_the_Band.mid,KeySignatureError('Could not decode key with 4 flats and mode 255')
+David_Bowie_-_Lazarus.mid,KeySignatureError('Could not decode key with 16 sharps and mode 1')
