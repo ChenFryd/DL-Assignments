@@ -52,20 +52,27 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.ticker import StrMethodFormatter
 import seaborn as sns
-from IPython.display import display
+from IPython.display import Audio, display
+from tqdm import tqdm
 
 
 # DL
 import torch
+from torch.utils.data import Dataset
 
-# Preprocessing
+# WORD2VEC
 import gensim.downloader as gensim_downloader
 from gensim.models import KeyedVectors
+
+# MIDI
 import mido
 import pretty_midi
 
 # %% [markdown]
 # ## Parameters
+
+# %%
+lookback = 7 # Number of previous lyrics to consider for prediction
 
 # %%
 # Data
@@ -129,8 +136,11 @@ def lyrics_dataset_statistics(df: pd.DataFrame) -> pd.Series:
 
 # %%
 train_df = load_lyrics_dataset(TRAIN_CSV_PATH)
+display(train_df.head())
 test_df = load_lyrics_dataset(TEST_CSV_PATH)
+display(test_df.head())
 
+# %%
 dataset_statistics = pd.DataFrame(
     {
         "train": lyrics_dataset_statistics(train_df),
@@ -215,9 +225,9 @@ def word_to_word2vec(word: str, model=None) -> np.ndarray:
 
 # %%
 # Test
-# The first real call downloads a large model. Uncomment to test manually:
-# music_vec_shape = word_to_word2vec("music").shape
-# print(f"Word2Vec vector shape for 'music': {music_vec_shape}")  # Expected: (300,)
+# The first real call downloads a large model.
+music_vec_shape = word_to_word2vec("music").shape
+print(f"Word2Vec vector shape for 'music': {music_vec_shape}")  # Expected: (300,)
 
 
 # %% [markdown]
@@ -551,3 +561,423 @@ for figure_path in saved_midi_figure_paths:
     print(f"- {figure_path}")
 
 display(midi_stats_summary)
+
+
+# %% [markdown]
+# ### Midi To Notes
+#
+# You will use three variables to represent a note when training the model: **pitch, step and duration**. The pitch is the perceptual quality of the sound as a MIDI note number. The step is the time elapsed from the previous note or start of the track. The duration is how long the note will be playing in seconds and is the difference between the note end and note start times. https://www.tensorflow.org/tutorials/audio/music_generation .
+
+# %%
+def one_midi_to_notes_df(midi: pretty_midi.PrettyMIDI) -> pd.DataFrame:
+    rows = []
+
+    for instrument in midi.instruments:
+        for note in instrument.notes:
+            rows.append({
+                "instrument_id": instrument.program,
+                "instrument_name": instrument.name,
+                "is_drum": instrument.is_drum,
+                "pitch (note_id)": note.pitch,
+                "note_name": pretty_midi.note_number_to_name(note.pitch) if not instrument.is_drum else pretty_midi.note_number_to_drum_name(note.pitch),
+                "start": note.start,
+                "end": note.end,
+                "duration": note.end - note.start,
+                "velocity": note.velocity,
+            })
+    
+    notes_df = pd.DataFrame(rows)
+
+    notes_df = notes_df.sort_values(["start", "end"]).reset_index(drop=True)
+    notes_df["time_from_last_note_start"] = notes_df["start"].diff().fillna(0)
+
+
+    return notes_df
+
+
+# %%
+def midi_files_to_notes_df(midi_folder_path: Path) -> pd.DataFrame:
+        
+    loaded_midis = load_midi_files(midi_folder_path) # dict[Path, pretty_midi.PrettyMIDI]
+
+    all_dfs = []
+
+    for midi_path, midi in tqdm(loaded_midis.items()):
+        df = one_midi_to_notes_df(midi)
+
+        df["midi_path"] = midi_path
+        df["midi_file"] = midi_path.name
+
+        all_dfs.append(df)
+
+    if len(all_dfs) == 0:
+        return pd.DataFrame()
+
+    return pd.concat(all_dfs, ignore_index=True)
+
+
+# %%
+example_path = MIDI_DIR / "2_Unlimited_-_Get_Ready_for_This.mid"
+midi = load_one_midi_file(example_path)
+
+df = one_midi_to_notes_df(midi)
+print(f" df shape: {df.shape}")
+display(df.head(20))
+
+
+audio = midi.synthesize(fs=16000)
+display(Audio(audio, rate=16000))
+
+# %% [markdown]
+# ### Midi to Features
+
+# %%
+def extract_midi_features(midi_path: str) -> np.ndarray:
+
+    midi = load_one_midi_file(Path(midi_path))
+
+    notes = []
+    for instrument in midi.instruments:
+        if instrument.is_drum:
+            continue
+
+        notes.extend(instrument.notes)
+
+    if len(notes) == 0:
+        return np.zeros(5, dtype=np.float32)
+
+    pitches = np.array([note.pitch for note in notes])
+    durations = np.array([note.end - note.start for note in notes])
+    velocities = np.array([note.velocity for note in notes])
+
+    features = np.array([
+        pitches.mean(),
+        pitches.std(),
+        durations.mean(),
+        velocities.mean(),
+        len(notes),
+    ], dtype=np.float32)
+
+    return features
+
+
+# %%
+def song_to_midi_file_name(artist: str, song_name: str) -> str:
+    """Convert artist and song names to the assignment MIDI filename pattern.
+
+    Args:
+        artist: Song artist.
+        song_name: Song title.
+
+    Returns:
+        Expected MIDI filename, such as ``Billy_Joel_-_Piano_Man.mid``.
+    """
+    artist_part = str(artist).strip().title().replace(" ", "_")
+    song_part = str(song_name).strip().title().replace(" ", "_")
+    return f"{artist_part}_-_{song_part}.mid"
+
+
+def normalize_song_key(artist: str, song_name: str) -> tuple[str, str]:
+    """Create a case-insensitive matching key for a song."""
+    return (
+        re.sub(r"[^a-z0-9]+", "", str(artist).lower()),
+        re.sub(r"[^a-z0-9]+", "", str(song_name).lower()),
+    )
+
+
+def build_midi_path_lookup(midi_dir: Path) -> dict[tuple[str, str], Path]:
+    """Index MIDI paths by normalized artist and song name."""
+    midi_lookup = {}
+
+    for midi_path in midi_dir.glob("*.mid"):
+        if "_-_" not in midi_path.stem:
+            continue
+
+        artist_part, song_part = midi_path.stem.split("_-_", maxsplit=1)
+        key = normalize_song_key(
+            artist_part.replace("_", " "),
+            song_part.replace("_", " "),
+        )
+        midi_lookup[key] = midi_path
+
+    return midi_lookup
+
+
+def find_midi_path(
+    artist: str,
+    song_name: str,
+    midi_path_lookup: dict[tuple[str, str], Path],
+) -> Path | None:
+    """Find the best MIDI path for an artist/song pair."""
+    artist_key, song_key = normalize_song_key(artist, song_name)
+    exact_path = midi_path_lookup.get((artist_key, song_key))
+    if exact_path is not None:
+        return exact_path
+
+    artist_matches = [
+        (midi_song_key, midi_path)
+        for (midi_artist_key, midi_song_key), midi_path in midi_path_lookup.items()
+        if midi_artist_key == artist_key
+    ]
+    prefix_matches = [
+        (midi_song_key, midi_path)
+        for midi_song_key, midi_path in artist_matches
+        if midi_song_key.startswith(song_key) or song_key.startswith(midi_song_key)
+    ]
+
+    if not prefix_matches:
+        return None
+
+    return sorted(prefix_matches, key=lambda item: len(item[0]))[0][1]
+
+
+def build_midi_features_dataframe(
+    lyrics_df: pd.DataFrame,
+    midi_dir: Path = MIDI_DIR,
+    raise_on_error: bool = False,
+) -> pd.DataFrame:
+    """Build a dataframe of MIDI feature vectors for songs in a lyrics dataframe.
+
+    Args:
+        lyrics_df: DataFrame with ``artist`` and ``song_name`` columns.
+        midi_dir: Directory containing the MIDI files.
+        raise_on_error: If True, fail when a MIDI file is missing or malformed.
+            If False, keep the row and use a NaN feature vector while warning.
+
+    Returns:
+        DataFrame indexed by artist and song_name with a midi_features column.
+    """
+    required_columns = {"artist", "song_name"}
+    missing_columns = required_columns - set(lyrics_df.columns)
+    if missing_columns:
+        raise KeyError(f"Missing required columns: {sorted(missing_columns)}")
+
+    rows = []
+    midi_path_lookup = build_midi_path_lookup(midi_dir)
+
+    for row in lyrics_df[["artist", "song_name"]].itertuples(index=False):
+        midi_path = find_midi_path(row.artist, row.song_name, midi_path_lookup)
+
+        try:
+            if midi_path is None:
+                expected_file_name = song_to_midi_file_name(row.artist, row.song_name)
+                raise FileNotFoundError(f"Could not find MIDI file like {expected_file_name}")
+
+            midi_features = extract_midi_features(str(midi_path))
+        except Exception as error:
+            if raise_on_error:
+                raise RuntimeError(
+                    f"Could not extract MIDI features for {row.artist} - {row.song_name}"
+                ) from error
+
+            warnings.warn(
+                f"Using NaN MIDI features for {row.artist} - {row.song_name}: {error!r}"
+            )
+            midi_features = np.full(5, np.nan, dtype=np.float32)
+
+        rows.append(
+            {
+                "artist": row.artist,
+                "song_name": row.song_name,
+                "midi_features": midi_features,
+            }
+        )
+
+    return pd.DataFrame(rows, columns=["artist", "song_name", "midi_features"]).set_index(
+        ["artist", "song_name"]
+    )
+
+
+# %%
+extract_midi_features(str(example_path))
+
+
+# %%
+midi_features_df = build_midi_features_dataframe(train_df, midi_dir=MIDI_DIR)
+
+print(f"MIDI features dataframe shape: {midi_features_df.shape}")
+display(midi_features_df.head(20))
+
+
+# %% [markdown]
+# ## Prepare Lyrics Sequences
+
+# %%
+def prepare_lyrics_sequences(
+    lyrics_df: pd.DataFrame,
+    lookback: int = lookback,
+    lyrics_column: str = "lyrics",
+    artist_column: str = "artist",
+    song_column: str = "song_name",
+) -> pd.DataFrame:
+    if lookback <= 0:
+        raise ValueError("lookback must be a positive integer.")
+
+    required_columns = {artist_column, song_column, lyrics_column}
+    missing_columns = required_columns - set(lyrics_df.columns)
+    if missing_columns:
+        raise KeyError(f"Missing required columns: {sorted(missing_columns)}")
+
+    rows = []
+
+    # For RNN/LSTM: old words first, newest word last
+    context_columns = [
+        f"lyric_t-{step}"
+        for step in range(lookback, 0, -1)
+    ]
+
+    for row in lyrics_df[[artist_column, song_column, lyrics_column]].itertuples(index=False):
+        tokens = tokenize_lyrics(getattr(row, lyrics_column))
+
+        if len(tokens) <= lookback:
+            continue
+
+        for target_position in range(lookback, len(tokens)):
+            previous_tokens = tokens[target_position - lookback : target_position]
+
+            rows.append({
+                "artist": getattr(row, artist_column),
+                "song_name": getattr(row, song_column),
+                "target_lyric": tokens[target_position],
+                **dict(zip(context_columns, previous_tokens)),
+            })
+
+    return pd.DataFrame(
+        rows,
+        columns=["artist", "song_name", "target_lyric", *context_columns],
+    ).set_index(["artist", "song_name"])
+
+
+# %%
+train_lyrics_sequences_df = prepare_lyrics_sequences(train_df, lookback=lookback)
+test_lyrics_sequences_df = prepare_lyrics_sequences(test_df, lookback=lookback)
+
+print(f"Train lyrics sequences dataframe shape: {train_lyrics_sequences_df.shape}")
+display(train_lyrics_sequences_df.head())
+
+print(f"Test lyrics sequences dataframe shape: {test_lyrics_sequences_df.shape}")
+display(test_lyrics_sequences_df.head())
+
+# %% [markdown]
+# ## Prepper Dataset and DataLoader
+#
+
+# %%
+class LyricsMidiPrepperDataset(Dataset):
+    """Dataset whose samples combine lyric context and MIDI features."""
+
+    def __init__(
+        self,
+        lyrics_sequences_df: pd.DataFrame,
+        midi_features_df: pd.DataFrame,
+        word2vec_model: KeyedVectors | None = None,
+        lookback: int = lookback,
+        target_word_to_index: dict[str, int] | None = None,
+    ) -> None:
+        """Create a lyrics-and-MIDI dataset.
+        The dataset is built by joining the provided lyrics sequences and MIDI features dataframes on artist and song name, then filtering out rows with missing MIDI features or out-of-vocabulary context words. The target lyric words are mapped to class indices based on the provided mapping or inferred from the data.
+        the __getitem__ method returns a tuple of (lyrics_context, song_midi_features, target_lyric) where lyrics_context is a tensor of shape (lookback, 300) containing the Word2Vec embeddings of the context words, midi_features is a tensor of shape (5,) containing the numeric MIDI features, and target is a scalar tensor with the class index of the target lyric word.
+        
+        
+        Args:
+            lyrics_sequences_df: DataFrame with indexed by artist and song_name, and columns for target_lyric and lyric context words.
+            midi_features_df: DataFrame indexed by artist and song_name, with a midi_features column containing numeric feature vectors.
+            word2vec_model: Optional preloaded Gensim keyed vectors object for converting context words to embeddings. If None, the default WORD2VEC_MODEL_NAME will be loaded lazily.
+            lookback: Number of previous lyric words in the context (must match the context columns in lyrics_sequences_df).
+            target_word_to_index: Optional mapping of target lyric words to class indices. If None, the mapping will be inferred from the unique target_lyric values in lyrics_sequences_df. If provided, rows with target
+        
+        """
+
+        # Validate input
+        if lookback <= 0:
+            raise ValueError("lookback must be a positive integer.")
+        required_lyrics_columns = {"target_lyric", *self.context_columns}
+        if list(lyrics_sequences_df.index.names) != ["artist", "song_name"]:
+            raise ValueError("lyrics_sequences_df must be indexed by ['artist', 'song_name'].")
+        if list(midi_features_df.index.names) != ["artist", "song_name"]:
+            raise ValueError("midi_features_df must be indexed by ['artist', 'song_name'].")
+        if missing_columns := required_lyrics_columns - set(lyrics_sequences_df.columns):
+            raise KeyError(f"Missing lyric sequence columns: {sorted(missing_columns)}")
+        if "midi_features" not in midi_features_df.columns:
+            raise KeyError("midi_features_df must contain a 'midi_features' column.")
+
+        # param
+        self.lookback = lookback
+        self.context_columns = [f"lyric_t-{step}" for step in range(lookback, 0, -1)]
+        self.word2vec_model = word2vec_model if word2vec_model is not None else load_word2vec_model()
+
+        midi_features_df = midi_features_df[~midi_features_df.index.duplicated(keep="first")] # remove duplication
+        lyrics_sequences_df = lyrics_sequences_df[~lyrics_sequences_df.index.duplicated(keep="first")] # remove duplication
+        self.df = lyrics_sequences_df.join(midi_features_df[["midi_features"]], how="inner")
+        # Remove rows with missing MIDI features or out-of-vocabulary context words.
+        self.df = self.df[~self.df["midi_features"].apply(lambda features: np.isnan(np.asarray(features)).any())].copy() # remove rows with NaN MIDI features
+        self.df = self.df[self.df[self.context_columns].apply(lambda row: all(word in self.word2vec_model for word in row), axis=1,)].copy() # remove rows with out-of-vocabulary context words
+
+        if target_word_to_index is None:
+            print("Warning: Inferring target word classes from data. Consider providing a fixed mapping to ensure consistent class indices across runs.")
+            target_words = sorted(self.df["target_lyric"].unique())
+            self.word_to_index = {word: index for index, word in enumerate(target_words)}
+        else:
+            self.word_to_index = dict(target_word_to_index)
+            self.df = self.df[self.df["target_lyric"].isin(self.word_to_index)].copy()
+
+        self.index_to_word = {index: word for word, index in self.word_to_index.items()}
+        unique_context_words = pd.unique(self.df[self.context_columns].values.ravel())
+        self.embedding_cache = {
+            word: np.asarray(self.word2vec_model[word], dtype=np.float32)
+            for word in unique_context_words
+        }
+        self.dataset_info = {
+            "lookback": self.lookback,
+            "num_samples": len(self.df),
+            "vocab_size": len(self.word_to_index),
+        }
+
+    def __len__(self) -> int:
+        """Return the number of valid lyric/MIDI samples."""
+        return len(self.df)
+
+    def __getitem__(self, index: int) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Return one sample.
+
+        Args:
+            index: Sample index.
+
+        Returns:
+            Tuple ``(lyrics_context, midi_features, target)`` where
+            ``lyrics_context`` has shape ``(lookback, 300)``,
+            ``midi_features`` has shape ``(5,)``, and ``target`` is a scalar
+            next-word class index.
+        """
+        row = self.df.iloc[index]
+        context_words = row[self.context_columns]
+        midi_features = np.asarray(row["midi_features"], dtype=np.float32)
+        target_word = row["target_lyric"]
+        lyrics_context = np.stack([self.embedding_cache[word] for word in context_words])
+        target = self.word_to_index[target_word]
+
+        return (
+            torch.tensor(lyrics_context, dtype=torch.float32),
+            torch.tensor(midi_features, dtype=torch.float32),
+            torch.tensor(target, dtype=torch.long),
+        )
+
+    @property
+    def vocab_size(self) -> int:
+        """Return the number of target-word classes."""
+        return len(self.word_to_index)
+
+
+# %%
+# Example usage, after the Word2Vec model is cached locally:
+# train_dataset = LyricsMidiPrepperDataset(
+#     train_lyrics_sequences_df,
+#     midi_features_df,
+#     lookback=lookback,
+# )
+# lyrics_context, midi_features, target = train_dataset[0]
+# print(lyrics_context.shape, midi_features.shape, target.shape)
+
+# %%
+from torch.utils.data import DataLoader
+

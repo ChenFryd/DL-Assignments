@@ -37,4 +37,5 @@ dependencies:
 
 
 # Jupytext
-# jupytext --sync assignment3.ipynb
+# cd Assignment3
+# conda run -n DL_A3_env jupytext --sync ./src/assignment3_lyrics_generation.py
