@@ -1,0 +1,96 @@
+
+############################################################
+Song: the bangles - eternal flame | Seed: 'love'
+############################################################
+
+--- Strategy: proportional ---
+your mind can't love it within in fresh is
+a the night who you will see a sign
+how another can't sleep nowhere no past time uptown
+than too hit up now cause her work to
+true than me knows miles on the fourth and
+who thing comes and gotta yeah go to now
+time had no time meaning we can't sit tonight
+keep please a meaning i gotta stand your fantasy
+of i drop then one near in your
+
+--- Strategy: temperature ---
+i don't know i love you and i wish
+you if i know i love i have i
+know i love you baby i don't think tonight
+i love you what if you passed and we
+want to you love that no makes you baby
+you can be what i look you better so
+goodbye i don't know that from so it to
+i face the world with you but the times
+in your eyes that's at the world the
+
+--- Strategy: top_k ---
+my girl were here just and i have the
+sign you are a your face there's not gonna
+can't see you got the love cause she really
+ever had there i do that i need that
+i can know the way and you say like
+you love me to me tonight and i don't
+succeed the way of my arms and how i
+may know this one way of a night of
+your lips on your window all the one
+
+--- Strategy: nucleus ---
+that my beat the words wanna is yours feeling
+for fun down in a hard what's a aw
+will be inside me we'll mean to that that
+ain't but so death turn down were me of
+sail here out under the saddle to i go
+so soon i always ask me you just little
+place with a won't be anymore never i feel
+blue on my can dance your finger i if
+you be your cares that i think you
+
+############################################################
+Song: billy joel - honesty | Seed: 'love'
+############################################################
+
+--- Strategy: proportional ---
+they you think me to you sweet i know
+i gave the world of the parking desire ends
+like yourself they've never can go my girl and
+your view don't only be these was imagine it
+i can't know what tonight you look cause cause
+you won't be all time and sure it don't
+say you'll be different man baby doesn't find me
+yeah off she'll the free slim for the roadhouse
+babe down the kiss is your clean of
+
+--- Strategy: temperature ---
+that you know but deep my heart but i
+am i laugh my heart like this dreams i
+know i don't know that you're true when you
+don't need to a of my mind before i
+take and and i know oh i am i
+was here hot to you be your mind so
+you're a and that you ever know that i
+see now i said to i heard it's oh
+never i want i got it to to
+
+--- Strategy: top_k ---
+what but now don't say it was the way
+the music that we do to i say but
+we just have some just was the you go
+on the days of the rain that would stop
+for a the street the and of the morning
+i need my last of the same in a
+empty of the crowd and it when we can
+get it time to you feel you're true hot
+is i had a one with me with
+
+--- Strategy: nucleus ---
+i want to if i lose and you know
+it's never they how turn me with you to
+you need me still i just you be but
+i heard i know that you so meant to
+we can be wrong but there right once you
+go cause if they cry back we'll turn in
+up the heat until now more now there the
+rain of the universe of keeping first the pina
+we would us photograph my photograph my questions

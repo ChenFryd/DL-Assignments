@@ -1,0 +1,4 @@
+# Trained models / large files
+results/word2vec_models/
+results/*.pt
+results/*.pth

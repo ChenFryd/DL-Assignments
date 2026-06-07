@@ -1,0 +1,630 @@
+
+============================================================
+Song: the bangles - eternal flame
+Model: lyrics_only | Seed: 'love'
+============================================================
+i know what you was it's if we don't
+say now you was this days i don't apple
+knew cool with a lookin jesus you can find
+it crawled to you there think you're afraid unnecessary
+but what pleas that friends wasted huh everybody you're
+plaster back to you do it look just now
+be right long not remember who's like young clearly
+one full one kid just find here of a
+you that and why give me up now
+
+============================================================
+Song: the bangles - eternal flame
+Model: lyrics_only | Seed: 'night'
+============================================================
+you hate to what they can't cry once the
+way i got this time of only kinds i
+have dig for like closer again and i do
+you've need you can gonna be long warm within
+just i need i think this there's your heart
+how you only be in your mind in your
+beat this the fought of the window of so
+and when you has snap in out with come
+the kiss money don't get us was off
+
+============================================================
+Song: the bangles - eternal flame
+Model: lyrics_only | Seed: 'run'
+============================================================
+out is a heaven to you want to much
+my sweet show you feel cause my west straight
+cause i will try to you forget me baby
+you believe me want me i have it's you
+feel that no this said and i want you
+you now i just damned telling your what take
+me close turn years tonight cause it's no second
+will play that games you be a getting growing
+saying this gonna forgotten us ain't a it's
+
+============================================================
+Song: the bangles - eternal flame
+Model: melody_concat | Seed: 'love'
+============================================================
+they is till growing backwards you must've have caught
+his bop its survivor can look in broadway fitting
+as else you got some before to that callin
+a air cries on the down and the off
+the man warmer brother in the place lane oh
+that takes the hot if i except a waits
+to sound there yesterday going i know five only
+skipping day of come until you welcome it all
+so don't say better uh love of heaven
+
+============================================================
+Song: the bangles - eternal flame
+Model: melody_concat | Seed: 'night'
+============================================================
+in spirit right lane could they reach the world
+cars the shoes goes so that loud he going
+hot end looking tired a so else you last
+last letter end unfurl on and grand fields full
+hours her la la la la o do i
+was a steam let's trust my own but would
+take woo for her empty if you give you
+only matter diggity me as a say i really
+begin this kiss everyday reminds me finger it
+
+============================================================
+Song: the bangles - eternal flame
+Model: melody_concat | Seed: 'run'
+============================================================
+they cool we safe so curse i wait inside
+closer with the five after you are toys closer
+the matter as her doctor times and where first
+fears to never there's such that we know to
+it m tucked way of whoa back left circles
+hey dance me these meet from you apart he
+out of broadway not your just town how if
+ever hear long alone goes not fine what's it
+not though so yourself time is school no
+
+============================================================
+Song: the bangles - eternal flame
+Model: melody_hiddeninit | Seed: 'love'
+============================================================
+that no upon your song tender where my universe
+cause why cause you should fly it to words
+if did take me waits turning hot he watch
+but we'll come woman niggas will to well mercy
+you clothes do yes lyrics and even attracting the
+miracles who in rhyme aching stars days god and
+touch me baby what you change into but i
+have am love gonna wrote to you and where
+the the before of good passing new run
+
+============================================================
+Song: the bangles - eternal flame
+Model: melody_hiddeninit | Seed: 'night'
+============================================================
+lack drop his fresh role you this hush my
+reach the least confidence you it look and it's
+the good dogs of my sound run anytime if
+just i can know you back again cause it's
+right and it's too that so much isn't you
+what she'll it has be you'd mean me keep
+you we know this saddle and when i go
+con she can go to to you go through
+yourself with you idea what i know to
+
+============================================================
+Song: the bangles - eternal flame
+Model: melody_hiddeninit | Seed: 'run'
+============================================================
+hardly dance in turning surprise chorus under head reaching
+and and you know here forgotten it's up your
+livin like all up when you would goodbye nowhere
+and with you feel they ever knew just suck
+it one you hold so called much past heard
+you gonna thought gives it call me back no
+where i believe so but i want me i
+do you're while all now for her soul at
+way the fail control sea look train closer
+
+============================================================
+Song: billy joel - honesty
+Model: lyrics_only | Seed: 'love'
+============================================================
+but she's as good hot of each men beyond
+are herbal it's this lack high my lucky son
+is much nothing isn't down like the yesterday is
+what so i do the stupid you know they
+forget so is taking me to you see it
+seven the shit got she'd fast on no by
+a his water all the lack that had yours
+comes he's crazy someday a my dreams only cause
+from in that day lasts night way i
+
+============================================================
+Song: billy joel - honesty
+Model: lyrics_only | Seed: 'night'
+============================================================
+flintstone town life from her pumpkin won't you know
+me what you have you baby can get a
+an things i see me what a a mony
+show you go all sign yourself and but you
+gotta help me very well often whoa can't was
+been my my made my queen with my heart
+of shining in the guy let to so he's
+my gave the up i see like midnight i
+want a the do i play up your
+
+============================================================
+Song: billy joel - honesty
+Model: lyrics_only | Seed: 'run'
+============================================================
+you couldn't know but cause me ever never never
+get there fell copacabana more music to the only
+lonely one again of mary flags in the pants
+that you loser to you were not you drive
+your healing cause they do ooh so if of
+when you're has parking when you acts and leavin
+wishin cause everybody's falling at these fuckin it's ready
+it loves to sure i want to you're the
+finest show your ten gave where a cold
+
+============================================================
+Song: billy joel - honesty
+Model: melody_concat | Seed: 'love'
+============================================================
+i could make you your arms i will a
+love i love is home closer of that we'll
+stop ya call tonight cuento way the pina ei
+planetary ooo blowing a where a always what i
+love i just really rock i wish will the
+d room stand up to and just all look
+do why to you know you feel girl sometimes
+i should matter he to to something what not
+she's they changes only lost but the italian
+
+============================================================
+Song: billy joel - honesty
+Model: melody_concat | Seed: 'night'
+============================================================
+land and young boy now she's hurt they we
+know when i do tonight it's time someday could
+just be it you're too but you all wrong
+not you sold out from my arms and i
+played out to you get when you wait her
+lives they know knowing hello what spose moving runnin
+inside a cry again in they dance safe by
+something it wants to they takes through this top
+away your lean and box that's your pride
+
+============================================================
+Song: billy joel - honesty
+Model: melody_concat | Seed: 'run'
+============================================================
+bleed to your can't were got fades to love
+to wanna jump all you slowly in the midnight
+man imaginary in woman out all too young was
+way the tainted of come ooh for the time
+until act me i buried the morning i just
+all anyone since the best unnecessary so is tired
+how oh now a your hey tune waiting the
+west song on the gold and the they was
+the answer unfurl me with a her reminds
+
+============================================================
+Song: billy joel - honesty
+Model: melody_hiddeninit | Seed: 'love'
+============================================================
+i know do it's it killing me oh be
+em throw as never one tonight cries out knows
+once how is be beside you fantasy you can't
+saw me shame brighter end and baby i really
+vision this are fantasy in moments good it or
+in water baby alone just that's waiting above and
+a names had last cover the noel time deep
+ain't sangre on wrapped by sorrow on mercy to
+ever spend each hang away into you be
+
+============================================================
+Song: billy joel - honesty
+Model: melody_hiddeninit | Seed: 'night'
+============================================================
+easily past i wish it one really can be
+no how never be it i come and that
+love you know how what i know do i
+always win shy i can the words will your
+we're so my hands but i were ronnie but
+divine they'd say what we're easy will wanna i
+feel light heart to leave it left away family
+we showing through here shit with an lied snow
+at me makes me explain and to you
+
+============================================================
+Song: billy joel - honesty
+Model: melody_hiddeninit | Seed: 'run'
+============================================================
+joke over come this drop and we want to
+to a waiting them son was tearing each floor
+or begin go for me ain't staring you know
+or you wait baby boy does always forget home
+time alone twistin paid with a moon of shing
+and then baby i don't know that that i
+never call to i feel the heart of her
+man who hello you better it baby will be
+words to i i want to you to
+
+============================================================
+Song: cardigans - lovefool
+Model: lyrics_only | Seed: 'love'
+============================================================
+you'd sometimes we got on here little act if
+not young he know you good day so so
+but bitch kissing me holding these without new ridin
+on me through her heroes thinkin and many music
+funky world she can get the tropic the race
+leave my shoe from a depths they haven't knew
+their dark you've will leave me on and a
+up to my guess that will to the but
+you swear you show you warm wasted please
+
+============================================================
+Song: cardigans - lovefool
+Model: lyrics_only | Seed: 'night'
+============================================================
+survivor you'll get to you can make me miss
+me someday ain't sister her there cause i find
+staring the guys harder playin not callin but meet
+up out i collect to it it's hung far
+right it's a back get each now of come
+and turn the best around is the riding god
+is to herbal black soft your la ha jaws
+the street night a day p a christ ceiling
+start tonight out this and you've beg me
+
+============================================================
+Song: cardigans - lovefool
+Model: lyrics_only | Seed: 'run'
+============================================================
+jackets by the slop back lying in he'd took
+all in so please you see me with his
+eyes in my boardwalk up in the roadhouse i
+will see at a your hometown my finally and
+dream they look up for here protect that that
+alone lost misunderstanding back here and we're turn will
+a em goodbye craze still on his radio man
+where a coming least one funk we ain't sing
+it well lack the right of the door
+
+============================================================
+Song: cardigans - lovefool
+Model: melody_concat | Seed: 'love'
+============================================================
+i want you want it wasn't no how goes
+oh everything you'll figure it before you know that
+i need give me don't always i do do
+i want who i think i take like stranger
+might take her superman leave your heart biz mag
+stray caught it and now history of face yeah
+leave and how the clock of you still got
+in whoa like have anyway i fucked so passed
+playing all her alive zombie shades and only
+
+============================================================
+Song: cardigans - lovefool
+Model: melody_concat | Seed: 'night'
+============================================================
+the nuclear down seven phone i can get clothes
+so but you know i know i will it
+than when i know i hope to you i
+need to you got much stop like that mony
+would might be old of the they'd turning away
+inside and i niggas start the mable and you're
+that holding an eye of a bright and we
+relive my was we're from the classroom they been
+put anybody out don't i know they when
+
+============================================================
+Song: cardigans - lovefool
+Model: melody_concat | Seed: 'run'
+============================================================
+convince fast honey whey like to goin without passes
+please once to you'll let me am you the
+only to be they mess a harmonise but she
+guess or it tell erase me gave you do
+for come through the news or really it i
+reach and you just poor i will your heart
+to i everything you're need to to the man
+i bought the broken from home easy heaven the
+heartaches so if a gotten than because you
+
+============================================================
+Song: cardigans - lovefool
+Model: melody_hiddeninit | Seed: 'love'
+============================================================
+i know life to forgotten didn't hmmm to it
+this grand of all are action bring me no
+slim in away monday in i invented to me
+good copa can't knew anything but but well to
+give me in our dick you ain't standing gimme
+in the town closes thanks he surely sole per
+living gold christmas pure like you got the get
+these left and just the fields of the border
+across your loving second expert rack over of
+
+============================================================
+Song: cardigans - lovefool
+Model: melody_hiddeninit | Seed: 'night'
+============================================================
+tired that when alone high please them make me
+cash saying that faith put it then now feelin
+from it simon said sounded a illegal fly hard
+got that cause or washing beyond add nothing there's
+pass all it's something chorus enough to to broadway
+wait feed here train on you was it sherry
+says closer always hoped surprised of they've gold money
+gives a wild bring out again oh and was
+coming and seems it jimmy party still no
+
+============================================================
+Song: cardigans - lovefool
+Model: melody_hiddeninit | Seed: 'run'
+============================================================
+on the kiss die good time out you're one
+good thinking put the from me guess they wrong
+that you you're just be mind they didn't pay
+to wrote step me invented damn for me they
+walk at sombrero tries often darlin goodness for harm
+bone for you as my hands down once a
+school proud that out down inside all both quick
+again is just a a and on the graduations
+above than yeah why still i gave us
+
+============================================================
+Song: aqua - barbie girl
+Model: lyrics_only | Seed: 'love'
+============================================================
+after the than in the finest rang to you
+don't be foolish on my heart for this right
+check in walk book earl in the wall to
+situations to you believe you out and you was
+just far find here more more light he who
+to makes to i need you adore like your
+back for and on your first dance i got
+and i find sometimes the rival who a the
+queen in the window god tonight are you
+
+============================================================
+Song: aqua - barbie girl
+Model: lyrics_only | Seed: 'night'
+============================================================
+ends standing from town kid i walk to a
+i heard i feel with you say that remember
+like recipe spark and you got this often and
+never this soon he grow let's lost the hend
+is it was i so now there to no
+won't come from one out in the talked and
+only used to you mean on me and just
+the your words that cut from his same nothin
+thought a your niggas touch her bell colors
+
+============================================================
+Song: aqua - barbie girl
+Model: lyrics_only | Seed: 'run'
+============================================================
+out your heart i know i wasn't like baby
+i wanna want you superman baby i can don't
+know your heart oh it's nowhere is just me
+and i need to only i know change you
+you can't be sad away baby but i believe
+in the promises long money where loud new book
+above my drop of the known slowly all on
+the sky open nothin on your head with find
+in before the end bop all all it
+
+============================================================
+Song: aqua - barbie girl
+Model: melody_concat | Seed: 'love'
+============================================================
+let me wanna be the one die no done
+to that ever see there what after asking again
+i and save my love you go out more
+with me alone ever ever gotta go too instead
+happy no they don't do clearly i dying surprised
+i said sometimes can't forget not some where that
+it's let to deep and she might make to
+be than now tired and blind it's his harder
+hot overwhelming a straight the southern line oh
+
+============================================================
+Song: aqua - barbie girl
+Model: melody_concat | Seed: 'night'
+============================================================
+always am we keep a style somewhere paradise yeah
+this taught you come and my doorbell ronnie doesn't
+you wait caught you it put me to a
+i give you how i hoe buy some night
+in again fake y'all darlin yeah on my last
+p it's la lucky and you can't wo knowing
+so flies very then far it's goodbye so like
+sweet not have gonna the death still listen me
+through me to me feel you go what
+
+============================================================
+Song: aqua - barbie girl
+Model: melody_concat | Seed: 'run'
+============================================================
+down my eyes kiddies stood blue sky dance on
+sunday comes out on the k room gotta gotta
+be ev'ry i am not i am baby ooh
+people quench me out when you could not let
+it wrong like you superman never so never you
+run it to you say it there's it fun
+sweet no it no gonna she were your superman
+it look a your yeah through in oh give
+me your miss it maybe me think does
+
+============================================================
+Song: aqua - barbie girl
+Model: melody_hiddeninit | Seed: 'love'
+============================================================
+it much never won't do not be it strong
+will you believe you for an shy all i
+love to i need have your gonna gonna need
+it knows some that lovin hot hot enough remember
+me more i believe i had a outside train
+if you did is thing you think no to
+it ever mean it rock like she'll she'll mean
+that joe said welcome me to sometimes it we're
+enough sherry girl want for cover this alone
+
+============================================================
+Song: aqua - barbie girl
+Model: melody_hiddeninit | Seed: 'night'
+============================================================
+not mess just sign again no gonna put it
+in same things watch and i will want you
+were me i sleep was like you must never
+be none you're alone it matter is it or
+other hot sup packed away lines caught gloom they
+hand alright i cry on night but by doing
+you made it you will want the things that
+same way you're days someday cry the time decisions
+this after true i seems listen washing the
+
+============================================================
+Song: aqua - barbie girl
+Model: melody_hiddeninit | Seed: 'run'
+============================================================
+is get only it man being evenin in your
+doing this showed the evening room you fell a
+sign myself love to a dancing he wouldn't run
+but my are and no gonna callin the time
+to gonna do me ever i want to to
+i know loves love it baby no no game
+what tonight yeah no should do us hot yeah
+yeah a my are colors move in sun cake
+ring to let it be a here put
+
+============================================================
+Song: blink 182 - all the small things
+Model: lyrics_only | Seed: 'love'
+============================================================
+at here i could do it i could loved
+you and it's too right that reason there good
+of from your mind around now they won't care
+i got a norma royce you am that we
+would can even know here may you show the
+oh don't be day of her went that smile
+the air that i knew this sister i am
+and what a by in close don't what wanna
+spend away people in free on blackstreet kitchen
+
+============================================================
+Song: blink 182 - all the small things
+Model: lyrics_only | Seed: 'night'
+============================================================
+yes all got a in broadway stand no now
+i am do to you walk you don't feel
+all at all my heart but all no we
+was wrong you still like you're nearest look i
+fall all the way the fields with hey knowing
+let's did crazy it baby would say it's my
+life of but you golden there up please only
+is i must never see you but so i
+think you're a how you want you make
+
+============================================================
+Song: blink 182 - all the small things
+Model: lyrics_only | Seed: 'run'
+============================================================
+watching all for a fingers yeah on the sing
+that your use me don't be go wake of
+your eyes i heard was your boys was a
+gettin oh yeah it's a good he's a without
+another fate i know that as me dear i
+could be your feet with the le hands so
+a back back every down away on a other
+you didn't know you never wake a stranger it's
+like it's wrong bad how they ever ever
+
+============================================================
+Song: blink 182 - all the small things
+Model: melody_concat | Seed: 'love'
+============================================================
+now not am just so when you do right
+you kiss x around you come protect it the
+funk way about she can't secrets or pain right
+of on the trance jesus it's the man another
+per news down please she do me not oh
+i don't believe why how but they wanna guide
+how in the everywhere high sitting for the line
+hot hold under for out no we can be
+there they want you it's so honey is
+
+============================================================
+Song: blink 182 - all the small things
+Model: melody_concat | Seed: 'night'
+============================================================
+about are now easy they touch out oh on
+the city state somewhere on here from his whole
+for his going stand on here bye on day
+it's the funk soul brother he's like now too
+now about right on me here don't let it
+tell you go it's you p my feet there
+yeah take me get it oh oh let me
+to it take you mind let's belong me baby
+think her bitter hand forever come this right
+
+============================================================
+Song: blink 182 - all the small things
+Model: melody_concat | Seed: 'run'
+============================================================
+down pop she oh she touch i can say
+tonight lasts i swear like with my arms with
+the dick control my pride on take the coat
+of my hometown around like here on here in
+them on it now y'all can't stronger flip and
+you told me little so even me things to
+she yell in instinctively oh much baby move very
+it i do cause she do you say that
+it's love a things is with his side
+
+============================================================
+Song: blink 182 - all the small things
+Model: melody_hiddeninit | Seed: 'love'
+============================================================
+it's way as when about this right place in
+this sister lack both door inside you don't know
+it ain't my so why much don't you're have
+worlds chorus forever tell it white is sister lately
+i dance fire fast sex and now in than
+moments turn on now the funk tell those goes
+for ting x in the sins of away and
+of it we show year but eats eee feel
+she'd quite yourself future cause if no future
+
+============================================================
+Song: blink 182 - all the small things
+Model: melody_hiddeninit | Seed: 'night'
+============================================================
+alright unnecessary nation brother jolly so about out home
+and now hmm right her hop closes with the
+heals and was funk it's so you held so
+your swear and why i want get to say
+you need to you meet for my was is
+hell through the its sleep brothers running it the
+funk words brother could a black but the funk
+tangled christmas these nation dreaming under now what leave
+me on by three the hour watch right
+
+============================================================
+Song: blink 182 - all the small things
+Model: melody_hiddeninit | Seed: 'run'
+============================================================
+your head splendid intergalactic another dimension intergalactic intergalactic intergalactic
+intergalactic intergalactic beastie up intergalactic planetary walla tickin another
+again jesus ooo kisses the winds control at moonlight
+floor ahhh have the pieces brother check up kiss
+me in the harder live the space i hot
+ba soul another shoppers explain out like cause now
+gonna for what for you you any know to
+to been his way of hell to to watching
+it times i let it to from this

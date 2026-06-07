@@ -34,6 +34,21 @@ python Assignment2/_build_notebook.py
 
 Dataset: download the aligned LFW (LFW-a) crops from <https://talhassner.github.io/home/projects/lfwa/index.html> and extract into `Assignment2/lfw2/`. Train/test pairs are in [Assignment2/pairsDevTrain.txt](Assignment2/pairsDevTrain.txt) and [Assignment2/pairsDevTest.txt](Assignment2/pairsDevTest.txt).
 
+## Assignment 3 — Lyrics Generation using RNNs
+
+Design and train RNN-based models to generate song lyrics, using a dataset of lyrics for training and evaluation. Built in PyTorch.
+
+Notebook: [Assignment3/src/assignment3_lyrics_generation.ipynb](Assignment3/src/assignment3_lyrics_generation.ipynb) — paired with [Assignment3/src/assignment3_lyrics_generation.py](Assignment3/src/assignment3_lyrics_generation.py) via jupytext (`--sync` to update either file from the other).
+
+**Environment:** uses a conda env (`DL_A3_env`), not pip/venv. See [Assignment3/README.md](Assignment3/README.md) for full setup instructions.
+
+```bash
+cd Assignment3
+conda env create -f conda_requirement.yaml
+conda activate DL_A3_env
+jupyter lab
+```
+
 ---
 
 # Extensions

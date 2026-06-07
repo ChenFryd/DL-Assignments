@@ -49,6 +49,13 @@ import numpy as np
 import pandas as pd
 
 # visualization
+import matplotlib
+try:
+    get_ipython  # type: ignore[name-defined]  # noqa: F821
+    IN_JUPYTER = True
+except NameError:
+    matplotlib.use("Agg")  # headless / script mode: no display available
+    IN_JUPYTER = False
 import matplotlib.pyplot as plt
 from matplotlib.ticker import StrMethodFormatter
 import seaborn as sns
@@ -387,11 +394,16 @@ def all_midi_notes_dataframe(midi_files: dict[Path, pretty_midi.PrettyMIDI]) -> 
 
 
 def save_current_figure(file_name: str) -> Path:
-    """Save the active Matplotlib figure into the results directory."""
+    """Save the active Matplotlib figure into the results directory.
+
+    In Jupyter the figure stays open so the inline backend auto-displays it.
+    In script mode it is closed to free memory.
+    """
     output_path = RESULTS_DIR / file_name
     plt.tight_layout()
     plt.savefig(output_path, dpi=200, bbox_inches="tight")
-    plt.close()
+    if not IN_JUPYTER:
+        plt.close()
     return output_path
 
 
@@ -598,7 +610,7 @@ def one_midi_to_notes_df(midi: pretty_midi.PrettyMIDI) -> pd.DataFrame:
 # %%
 def midi_files_to_notes_df(midi_folder_path: Path) -> pd.DataFrame:
         
-    loaded_midis = load_midi_files(midi_folder_path) # dict[Path, pretty_midi.PrettyMIDI]
+    loaded_midis, _ = load_midi_files(midi_folder_path)  # returns (dict, errors_df)
 
     all_dfs = []
 
@@ -891,7 +903,9 @@ class LyricsMidiPrepperDataset(Dataset):
         # Validate input
         if lookback <= 0:
             raise ValueError("lookback must be a positive integer.")
-        required_lyrics_columns = {"target_lyric", *self.context_columns}
+        # context_columns must be computed before the validation set that uses it
+        context_columns = [f"lyric_t-{step}" for step in range(lookback, 0, -1)]
+        required_lyrics_columns = {"target_lyric", *context_columns}
         if list(lyrics_sequences_df.index.names) != ["artist", "song_name"]:
             raise ValueError("lyrics_sequences_df must be indexed by ['artist', 'song_name'].")
         if list(midi_features_df.index.names) != ["artist", "song_name"]:
@@ -903,11 +917,13 @@ class LyricsMidiPrepperDataset(Dataset):
 
         # param
         self.lookback = lookback
-        self.context_columns = [f"lyric_t-{step}" for step in range(lookback, 0, -1)]
+        self.context_columns = context_columns
         self.word2vec_model = word2vec_model if word2vec_model is not None else load_word2vec_model()
 
-        midi_features_df = midi_features_df[~midi_features_df.index.duplicated(keep="first")] # remove duplication
-        lyrics_sequences_df = lyrics_sequences_df[~lyrics_sequences_df.index.duplicated(keep="first")] # remove duplication
+        # Deduplicate MIDI features only (one feature vector per song is enough).
+        # Do NOT deduplicate lyrics_sequences_df — it intentionally has many rows
+        # per song (one per sliding-window position) and the join is many-to-one.
+        midi_features_df = midi_features_df[~midi_features_df.index.duplicated(keep="first")]
         self.df = lyrics_sequences_df.join(midi_features_df[["midi_features"]], how="inner")
         # Remove rows with missing MIDI features or out-of-vocabulary context words.
         self.df = self.df[~self.df["midi_features"].apply(lambda features: np.isnan(np.asarray(features)).any())].copy() # remove rows with NaN MIDI features
@@ -980,4 +996,866 @@ class LyricsMidiPrepperDataset(Dataset):
 
 # %%
 from torch.utils.data import DataLoader
+
+# %% [markdown]
+# ## Vocab + Train/Val Split + DataLoaders
+
+# %%
+import torch.nn as nn
+from torch.utils.tensorboard import SummaryWriter
+from collections import Counter
+
+VOCAB_SIZE = 5000
+BATCH_SIZE = 128
+HIDDEN_SIZE = 256
+NUM_LAYERS = 2
+DROPOUT = 0.3
+EPOCHS = 15
+LEARNING_RATE = 1e-3
+WORDS_PER_LINE = 9
+GENERATE_NUM_WORDS = 80
+VAL_SPLIT = 0.2
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Device: {DEVICE}")
+
+
+def build_top_k_vocab(lyrics_sequences_df: pd.DataFrame, k: int = VOCAB_SIZE) -> dict[str, int]:
+    """Build word-to-index mapping from top-k most frequent target words.
+
+    Limiting vocabulary to top-k words keeps the output layer manageable
+    for CPU training (full vocab can exceed 30k unique words).
+    """
+    word_counts = Counter(lyrics_sequences_df["target_lyric"])
+    top_words = [word for word, _ in word_counts.most_common(k)]
+    return {word: idx for idx, word in enumerate(top_words)}
+
+
+def song_level_train_val_split(
+    lyrics_df: pd.DataFrame,
+    val_fraction: float = VAL_SPLIT,
+    random_seed: int = 42,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Split by unique songs to prevent train/val leakage."""
+    songs = lyrics_df[["artist", "song_name"]].drop_duplicates().sample(frac=1, random_state=random_seed)
+    n_val = max(1, int(len(songs) * val_fraction))
+    val_songs = songs.iloc[:n_val].set_index(["artist", "song_name"])
+    train_songs_index = songs.iloc[n_val:].set_index(["artist", "song_name"]).index
+
+    song_index = lyrics_df.set_index(["artist", "song_name"]).index
+    return lyrics_df[song_index.isin(train_songs_index)].copy(), lyrics_df[song_index.isin(val_songs.index)].copy()
+
+
+# %%
+train_split_df, val_split_df = song_level_train_val_split(train_df)
+print(f"Train songs: {train_split_df['song_name'].nunique()}, Val songs: {val_split_df['song_name'].nunique()}")
+
+train_seqs_df = prepare_lyrics_sequences(train_split_df, lookback=lookback)
+val_seqs_df = prepare_lyrics_sequences(val_split_df, lookback=lookback)
+
+target_word_to_index = build_top_k_vocab(train_seqs_df, k=VOCAB_SIZE)
+print(f"Vocab size: {len(target_word_to_index)}")
+
+w2v_model = load_word2vec_model()
+midi_features_train_df = build_midi_features_dataframe(train_split_df, midi_dir=MIDI_DIR)
+midi_features_val_df = build_midi_features_dataframe(val_split_df, midi_dir=MIDI_DIR)
+
+# Normalize MIDI features using train-set statistics.
+# The 5 features span very different scales (e.g. avg_pitch ≈ 60–80 vs num_notes ≈ 100–5000).
+# Z-score normalization prevents high-magnitude features from dominating.
+# dropna() does not work on object-dtype Series of numpy arrays,
+# so we filter valid (non-NaN) feature vectors explicitly.
+_valid_feats = [v for v in midi_features_train_df["midi_features"].values
+                if v is not None and not np.any(np.isnan(v))]
+train_midi_matrix = np.stack(_valid_feats)
+midi_mean = train_midi_matrix.mean(axis=0)
+midi_std  = train_midi_matrix.std(axis=0) + 1e-8  # avoid division by zero
+
+def normalize_midi_features(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    df["midi_features"] = df["midi_features"].apply(
+        lambda v: ((np.asarray(v, dtype=np.float32) - midi_mean) / midi_std)
+        if v is not None and not np.any(np.isnan(v))
+        else v
+    )
+    return df
+
+midi_features_train_df = normalize_midi_features(midi_features_train_df)
+midi_features_val_df   = normalize_midi_features(midi_features_val_df)
+print(f"MIDI normalization — mean: {midi_mean.round(2)}, std: {midi_std.round(2)}")
+
+train_dataset = LyricsMidiPrepperDataset(
+    train_seqs_df, midi_features_train_df,
+    word2vec_model=w2v_model, lookback=lookback,
+    target_word_to_index=target_word_to_index,
+)
+val_dataset = LyricsMidiPrepperDataset(
+    val_seqs_df, midi_features_val_df,
+    word2vec_model=w2v_model, lookback=lookback,
+    target_word_to_index=target_word_to_index,
+)
+
+train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
+
+print(f"Train samples: {len(train_dataset)}, Val samples: {len(val_dataset)}")
+
+# %% [markdown]
+# ## Model Definitions
+#
+# Three models share the same interface:
+#   `forward(lyrics_context, midi_features) -> logits[batch, vocab_size]`
+#
+# - **LyricsOnlyModel**: baseline, ignores midi_features.
+# - **MelodyConcatModel** (Approach A): broadcasts midi_features across the time axis
+#   and concatenates to each word embedding before the LSTM.
+# - **MelodyHiddenInitModel** (Approach B): projects midi_features into the LSTM's
+#   initial (h0, c0) state — melody shapes the hidden dynamics rather than each input.
+
+# %%
+class LyricsOnlyModel(nn.Module):
+    """LSTM that predicts the next lyric word from a context window.
+
+    Receives no melody information — serves as the control baseline.
+    """
+
+    def __init__(self, vocab_size: int, hidden_size: int = HIDDEN_SIZE,
+                 num_layers: int = NUM_LAYERS, dropout: float = DROPOUT) -> None:
+        super().__init__()
+        self.lstm = nn.LSTM(
+            input_size=WORD2VEC_DIM,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            dropout=dropout if num_layers > 1 else 0.0,
+            batch_first=True,
+        )
+        self.dropout = nn.Dropout(dropout)
+        self.fc = nn.Linear(hidden_size, vocab_size)
+
+    def forward(self, lyrics_context: torch.Tensor, midi_features: torch.Tensor) -> torch.Tensor:
+        # lyrics_context: (batch, lookback, 300)
+        out, _ = self.lstm(lyrics_context)         # (batch, lookback, hidden)
+        last = self.dropout(out[:, -1, :])          # (batch, hidden)
+        return self.fc(last)                        # (batch, vocab_size)
+
+
+class MelodyConcatModel(nn.Module):
+    """Approach A: MIDI features concatenated to every word-embedding timestep.
+
+    The LSTM input at each step is [word_emb || midi_features] = (300+5) dims,
+    allowing the melody to directly modulate every prediction step.
+    """
+
+    MIDI_DIM = 5
+
+    def __init__(self, vocab_size: int, hidden_size: int = HIDDEN_SIZE,
+                 num_layers: int = NUM_LAYERS, dropout: float = DROPOUT) -> None:
+        super().__init__()
+        self.lstm = nn.LSTM(
+            input_size=WORD2VEC_DIM + self.MIDI_DIM,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            dropout=dropout if num_layers > 1 else 0.0,
+            batch_first=True,
+        )
+        self.dropout = nn.Dropout(dropout)
+        self.fc = nn.Linear(hidden_size, vocab_size)
+
+    def forward(self, lyrics_context: torch.Tensor, midi_features: torch.Tensor) -> torch.Tensor:
+        # lyrics_context: (batch, lookback, 300)
+        # midi_features:  (batch, 5)
+        batch, seq_len, _ = lyrics_context.shape
+        midi_expanded = midi_features.unsqueeze(1).expand(batch, seq_len, self.MIDI_DIM)
+        x = torch.cat([lyrics_context, midi_expanded], dim=2)  # (batch, lookback, 305)
+        out, _ = self.lstm(x)
+        last = self.dropout(out[:, -1, :])
+        return self.fc(last)
+
+
+class MelodyHiddenInitModel(nn.Module):
+    """Approach B: MIDI features projected into the LSTM initial hidden state.
+
+    The LSTM input remains 300-dim word embeddings, but the melody is encoded
+    into (h0, c0) via a learned projection — a structurally different integration
+    that conditions the entire sequence through the hidden dynamics.
+    """
+
+    MIDI_DIM = 5
+
+    def __init__(self, vocab_size: int, hidden_size: int = HIDDEN_SIZE,
+                 num_layers: int = NUM_LAYERS, dropout: float = DROPOUT) -> None:
+        super().__init__()
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        # Projects 5 MIDI scalars to the full (h0, c0) tensor for all layers
+        self.midi_proj = nn.Linear(self.MIDI_DIM, num_layers * hidden_size * 2)
+        self.lstm = nn.LSTM(
+            input_size=WORD2VEC_DIM,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            dropout=dropout if num_layers > 1 else 0.0,
+            batch_first=True,
+        )
+        self.dropout = nn.Dropout(dropout)
+        self.fc = nn.Linear(hidden_size, vocab_size)
+
+    def forward(self, lyrics_context: torch.Tensor, midi_features: torch.Tensor) -> torch.Tensor:
+        batch = lyrics_context.shape[0]
+        # Project MIDI features to initial hidden and cell state
+        proj = self.midi_proj(midi_features)                        # (batch, num_layers*hidden*2)
+        proj = proj.view(batch, self.num_layers * 2, self.hidden_size)
+        proj = proj.permute(1, 0, 2).contiguous()                   # (num_layers*2, batch, hidden)
+        h0 = proj[:self.num_layers]                                 # (num_layers, batch, hidden)
+        c0 = proj[self.num_layers:]                                 # (num_layers, batch, hidden)
+        out, _ = self.lstm(lyrics_context, (h0, c0))
+        last = self.dropout(out[:, -1, :])
+        return self.fc(last)
+
+
+# %% [markdown]
+# ## Training Loop
+
+# %%
+def train_model(
+    model: nn.Module,
+    train_loader: DataLoader,
+    val_loader: DataLoader,
+    model_name: str,
+    epochs: int = EPOCHS,
+    lr: float = LEARNING_RATE,
+    device: torch.device = DEVICE,
+) -> list[dict]:
+    """Train model and log losses to TensorBoard. Returns per-epoch history.
+
+    Saves the best-val-loss checkpoint to results/<model_name>_best.pt and
+    restores it after training so the model is ready for generation.
+    """
+    model = model.to(device)
+    criterion = nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    writer = SummaryWriter(str(RESULTS_DIR / "runs" / model_name))
+
+    best_val_loss = float("inf")
+    checkpoint_path = RESULTS_DIR / f"{model_name}_best.pt"
+    history = []
+
+    for epoch in range(1, epochs + 1):
+        # --- Train ---
+        model.train()
+        train_loss_sum, train_n = 0.0, 0
+        for lyrics_ctx, midi_feat, targets in train_loader:
+            lyrics_ctx = lyrics_ctx.to(device)
+            midi_feat = midi_feat.to(device)
+            targets = targets.to(device)
+
+            optimizer.zero_grad()
+            logits = model(lyrics_ctx, midi_feat)
+            loss = criterion(logits, targets)
+            loss.backward()
+            nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
+            optimizer.step()
+
+            train_loss_sum += loss.item() * targets.size(0)
+            train_n += targets.size(0)
+
+        train_loss = train_loss_sum / train_n
+
+        # --- Val ---
+        model.eval()
+        val_loss_sum, val_n = 0.0, 0
+        with torch.no_grad():
+            for lyrics_ctx, midi_feat, targets in val_loader:
+                lyrics_ctx = lyrics_ctx.to(device)
+                midi_feat = midi_feat.to(device)
+                targets = targets.to(device)
+                logits = model(lyrics_ctx, midi_feat)
+                loss = criterion(logits, targets)
+                val_loss_sum += loss.item() * targets.size(0)
+                val_n += targets.size(0)
+
+        val_loss = val_loss_sum / val_n
+
+        writer.add_scalar("Loss/train", train_loss, epoch)
+        writer.add_scalar("Loss/val", val_loss, epoch)
+        history.append({"epoch": epoch, "train_loss": train_loss, "val_loss": val_loss})
+        print(f"[{model_name}] Epoch {epoch}/{epochs} — train: {train_loss:.4f}, val: {val_loss:.4f}")
+
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            torch.save(model.state_dict(), checkpoint_path)
+
+    writer.close()
+    model.load_state_dict(torch.load(checkpoint_path, map_location=device, weights_only=True))
+    print(f"[{model_name}] Best val loss: {best_val_loss:.4f} — loaded from {checkpoint_path}")
+    return history
+
+
+# %% [markdown]
+# ## Instantiate and Train All Three Models
+#
+# `load_or_train` checks for an existing checkpoint first.
+# If one exists the model is loaded instantly and history is read from the
+# TensorBoard event files.  Only models without a saved checkpoint are trained.
+
+# %%
+from tensorboard.backend.event_processing import event_accumulator as tb_ea
+import math
+
+def read_tb_history(model_name: str) -> list[dict]:
+    """Read per-epoch train/val loss from an existing TensorBoard run directory.
+
+    When a run directory contains event files from multiple training sessions,
+    EventAccumulator concatenates all of them.  We keep only the *last* entry
+    for each step so the chart shows the most recent training run.
+    """
+    run_dir = RESULTS_DIR / "runs" / model_name
+    ea = tb_ea.EventAccumulator(str(run_dir))
+    ea.Reload()
+    tags = ea.Tags().get("scalars", [])
+    if "Loss/train" not in tags or "Loss/val" not in tags:
+        return []
+    train_events = ea.Scalars("Loss/train")
+    val_events   = ea.Scalars("Loss/val")
+    # Build dicts keyed by step; later entries overwrite earlier ones (most recent run wins)
+    train_by_step = {e.step: e.value for e in train_events}
+    val_by_step   = {e.step: e.value for e in val_events}
+    steps = sorted(set(train_by_step) & set(val_by_step))
+    return [
+        {"epoch": s, "train_loss": train_by_step[s], "val_loss": val_by_step[s]}
+        for s in steps
+    ]
+
+
+def load_or_train(
+    model: nn.Module,
+    train_loader: DataLoader,
+    val_loader: DataLoader,
+    model_name: str,
+) -> list[dict]:
+    """Load checkpoint + TensorBoard history if available, else train from scratch."""
+    checkpoint_path = RESULTS_DIR / f"{model_name}_best.pt"
+    if checkpoint_path.exists():
+        model.load_state_dict(
+            torch.load(checkpoint_path, map_location=DEVICE, weights_only=True)
+        )
+        model.to(DEVICE)
+        history = read_tb_history(model_name)
+        epochs_done = len(history)
+        print(f"[{model_name}] Loaded checkpoint ({epochs_done} epochs in TensorBoard history).")
+        return history
+    print(f"[{model_name}] No checkpoint found — training from scratch.")
+    return train_model(model, train_loader, val_loader, model_name)
+
+
+# %%
+vocab_size = len(target_word_to_index)
+
+lyrics_only_model     = LyricsOnlyModel(vocab_size)
+melody_concat_model   = MelodyConcatModel(vocab_size)
+melody_hiddeninit_model = MelodyHiddenInitModel(vocab_size)
+
+print(f"LyricsOnlyModel params:       {sum(p.numel() for p in lyrics_only_model.parameters()):,}")
+print(f"MelodyConcatModel params:     {sum(p.numel() for p in melody_concat_model.parameters()):,}")
+print(f"MelodyHiddenInitModel params: {sum(p.numel() for p in melody_hiddeninit_model.parameters()):,}")
+
+# %%
+history_lyrics_only = load_or_train(lyrics_only_model, train_loader, val_loader, "lyrics_only")
+
+# %%
+history_melody_concat = load_or_train(melody_concat_model, train_loader, val_loader, "melody_concat")
+
+# %%
+history_melody_hiddeninit = load_or_train(melody_hiddeninit_model, train_loader, val_loader, "melody_hiddeninit")
+
+# %% [markdown]
+# ## Training Visualisations
+#
+# ### Loss curves
+# Cross-entropy loss and perplexity (exp(loss)) for each model over training.
+
+# %%
+MODEL_DISPLAY_NAMES = {
+    "lyrics_only":       "Lyrics Only (Baseline)",
+    "melody_concat":     "Melody Concat (Approach A)",
+    "melody_hiddeninit": "Melody Hidden-Init (Approach B)",
+}
+model_histories = [
+    ("lyrics_only",       history_lyrics_only),
+    ("melody_concat",     history_melody_concat),
+    ("melody_hiddeninit", history_melody_hiddeninit),
+]
+
+# --- Loss curves ---
+fig, axes = plt.subplots(1, 3, figsize=(16, 4), sharey=True)
+for ax, (key, history) in zip(axes, model_histories):
+    epochs_x = [h["epoch"] for h in history]
+    ax.plot(epochs_x, [h["train_loss"] for h in history], label="Train", linewidth=2)
+    ax.plot(epochs_x, [h["val_loss"]   for h in history], label="Val",   linewidth=2, linestyle="--")
+    ax.set_title(MODEL_DISPLAY_NAMES[key], fontsize=13)
+    ax.set_xlabel("Epoch", fontsize=12)
+    ax.set_ylabel("Cross-Entropy Loss", fontsize=12)
+    ax.legend(fontsize=11)
+    ax.grid(True, alpha=0.3)
+plt.suptitle("Training & Validation Loss — All Models", fontsize=15, y=1.02)
+save_current_figure("training_curves_loss.png")
+
+# %%
+# --- Perplexity curves (exp of cross-entropy) ---
+fig, axes = plt.subplots(1, 3, figsize=(16, 4), sharey=True)
+for ax, (key, history) in zip(axes, model_histories):
+    epochs_x = [h["epoch"] for h in history]
+    ax.plot(epochs_x, [math.exp(h["train_loss"]) for h in history], label="Train", linewidth=2)
+    ax.plot(epochs_x, [math.exp(h["val_loss"])   for h in history], label="Val",   linewidth=2, linestyle="--")
+    ax.set_title(MODEL_DISPLAY_NAMES[key], fontsize=13)
+    ax.set_xlabel("Epoch", fontsize=12)
+    ax.set_ylabel("Perplexity", fontsize=12)
+    ax.legend(fontsize=11)
+    ax.grid(True, alpha=0.3)
+plt.suptitle("Training & Validation Perplexity — All Models", fontsize=15, y=1.02)
+save_current_figure("training_curves_perplexity.png")
+
+# %%
+# --- Model comparison: best validation loss & perplexity bar chart ---
+best_val = {key: min(h["val_loss"] for h in hist) for key, hist in model_histories}
+fig, axes = plt.subplots(1, 2, figsize=(11, 5))
+_labels = [MODEL_DISPLAY_NAMES[k] for k in best_val]
+_colors = ["#4f7cac", "#e07b39", "#6aab68"]
+
+bars0 = axes[0].bar(_labels, list(best_val.values()), color=_colors)
+axes[0].set_title("Best Validation Loss", fontsize=13)
+axes[0].set_ylabel("Cross-Entropy Loss", fontsize=12)
+axes[0].tick_params(axis="x", labelsize=10, rotation=15)
+for bar, val in zip(bars0, best_val.values()):
+    axes[0].text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.02,
+                 f"{val:.4f}", ha="center", va="bottom", fontsize=11, color="black", fontweight="bold")
+
+_perp_vals = [math.exp(v) for v in best_val.values()]
+bars1 = axes[1].bar(_labels, _perp_vals, color=_colors)
+axes[1].set_title("Best Validation Perplexity", fontsize=13)
+axes[1].set_ylabel("Perplexity", fontsize=12)
+axes[1].tick_params(axis="x", labelsize=10, rotation=15)
+for bar, val in zip(bars1, _perp_vals):
+    axes[1].text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 1,
+                 f"{val:.1f}", ha="center", va="bottom", fontsize=11, color="black", fontweight="bold")
+
+plt.suptitle("Model Comparison — Best Validation Metrics", fontsize=14, y=1.02)
+save_current_figure("model_comparison_bar.png")
+
+# %% [markdown]
+# ## Text Generation
+#
+# `generate_lyrics` autoregressively produces one word at a time using a
+# sliding window of `lookback` previous words.  Four sampling strategies are
+# supported; all are post-processing of the same logit vector so they work
+# without retraining:
+#
+# - **proportional** — multinomial sample from the raw softmax distribution
+# - **temperature** — divide logits by T before softmax (T < 1 = sharper,
+#   T > 1 = flatter / more random)
+# - **top_k** — zero out every logit except the top-k, then sample
+# - **nucleus** — keep the smallest set of words whose cumulative probability
+#   reaches *p*, zero out the rest, then sample
+
+# %%
+import torch.nn.functional as F
+
+FALLBACK_SEED_WORD = "love"  # used when the requested seed word is OOV
+
+
+def _apply_sampling_strategy(
+    logits: torch.Tensor,
+    strategy: str,
+    temperature: float,
+    top_k: int,
+    top_p: float,
+) -> int:
+    """Apply a decoding strategy to a 1-D logit tensor and return a word index."""
+    if strategy == "proportional":
+        probs = F.softmax(logits, dim=-1)
+        return torch.multinomial(probs, 1).item()
+
+    if strategy == "temperature":
+        probs = F.softmax(logits / max(temperature, 1e-8), dim=-1)
+        return torch.multinomial(probs, 1).item()
+
+    if strategy == "top_k":
+        k = min(top_k, logits.size(-1))
+        values, _ = torch.topk(logits, k)
+        threshold = values[-1]
+        filtered = logits.masked_fill(logits < threshold, float("-inf"))
+        probs = F.softmax(filtered, dim=-1)
+        return torch.multinomial(probs, 1).item()
+
+    if strategy == "nucleus":
+        sorted_logits, sorted_indices = torch.sort(logits, descending=True)
+        sorted_probs = F.softmax(sorted_logits, dim=-1)
+        cumsum = torch.cumsum(sorted_probs, dim=-1)
+        # Remove tokens once cumulative mass exceeds top_p
+        remove_mask = cumsum - sorted_probs > top_p
+        sorted_logits = sorted_logits.masked_fill(remove_mask, float("-inf"))
+        # Scatter back to original ordering
+        filtered = torch.zeros_like(logits).scatter_(0, sorted_indices, sorted_logits)
+        probs = F.softmax(filtered, dim=-1)
+        return torch.multinomial(probs, 1).item()
+
+    raise ValueError(f"Unknown strategy '{strategy}'. Choose from: proportional, temperature, top_k, nucleus.")
+
+
+def generate_lyrics(
+    model: nn.Module,
+    seed_word: str,
+    midi_features: np.ndarray | None,
+    word_to_index: dict[str, int],
+    index_to_word: dict[int, str],
+    word2vec_model: KeyedVectors,
+    num_words: int = GENERATE_NUM_WORDS,
+    strategy: str = "proportional",
+    temperature: float = 1.0,
+    top_k: int = 50,
+    top_p: float = 0.9,
+    words_per_line: int = WORDS_PER_LINE,
+    device: torch.device = DEVICE,
+) -> str:
+    """Generate lyrics autoregressively from a seed word and optional MIDI features.
+
+    Args:
+        model: Trained LyricsOnlyModel, MelodyConcatModel, or MelodyHiddenInitModel.
+        seed_word: First word of the output. Falls back to FALLBACK_SEED_WORD if OOV.
+        midi_features: 5-element MIDI feature vector, or None for the lyrics-only model.
+        word_to_index: Vocabulary mapping (word → class index).
+        index_to_word: Reverse vocabulary (class index → word).
+        word2vec_model: Gensim keyed vectors for embedding lookups.
+        num_words: Total words to generate.
+        strategy: One of 'proportional', 'temperature', 'top_k', 'nucleus'.
+        temperature: Temperature for the temperature strategy.
+        top_k: k for the top_k strategy.
+        top_p: Cumulative probability threshold for the nucleus strategy.
+        words_per_line: Insert a newline every this many generated words.
+        device: Torch device.
+
+    Returns:
+        Generated lyrics as a formatted multi-line string.
+    """
+    model.eval()
+
+    # Resolve seed word — fall back if not embeddable
+    def _can_embed(word: str) -> bool:
+        for candidate in (word, word.lower(), word.title()):
+            if candidate in word2vec_model:
+                return True
+        return False
+
+    if not _can_embed(seed_word):
+        warnings.warn(f"Seed word '{seed_word}' not in Word2Vec; using '{FALLBACK_SEED_WORD}'.")
+        seed_word = FALLBACK_SEED_WORD
+
+    def _embed(word: str) -> np.ndarray:
+        for candidate in (word, word.lower(), word.title()):
+            if candidate in word2vec_model:
+                return np.asarray(word2vec_model[candidate], dtype=np.float32)
+        raise KeyError(word)
+
+    # Build initial context: fill the lookback window with the seed word
+    context = [seed_word] * lookback
+
+    midi_tensor = torch.zeros(1, 5, device=device)
+    if midi_features is not None:
+        midi_tensor = torch.tensor(midi_features, dtype=torch.float32, device=device).unsqueeze(0)
+
+    generated_words = []
+
+    with torch.no_grad():
+        for step in range(num_words):
+            # Embed current context window
+            ctx_array = np.stack([_embed(w) for w in context])          # (lookback, 300)
+            ctx_tensor = torch.tensor(ctx_array, dtype=torch.float32, device=device).unsqueeze(0)  # (1, lookback, 300)
+
+            logits = model(ctx_tensor, midi_tensor).squeeze(0)           # (vocab_size,)
+
+            # Sample next word
+            for _ in range(20):  # retry if sampled word is not embeddable
+                word_idx = _apply_sampling_strategy(logits, strategy, temperature, top_k, top_p)
+                next_word = index_to_word.get(word_idx, FALLBACK_SEED_WORD)
+                if _can_embed(next_word):
+                    break
+            else:
+                next_word = FALLBACK_SEED_WORD
+
+            generated_words.append(next_word)
+            context = context[1:] + [next_word]  # slide window
+
+    # Format as song: insert newlines to create lines
+    lines, current_line = [], []
+    for i, word in enumerate(generated_words):
+        current_line.append(word)
+        if len(current_line) >= words_per_line:
+            lines.append(" ".join(current_line))
+            current_line = []
+    if current_line:
+        lines.append(" ".join(current_line))
+
+    return "\n".join(lines)
+
+
+# %% [markdown]
+# ## Test Phase
+#
+# For each of the 3 test songs:
+# - Generate lyrics with 3 seed words × 3 models (proportional sampling)
+# - Save all outputs to results/generated_lyrics.txt
+#
+# Then run two analysis experiments:
+# 1. **Melody-influence probe** — compare outputs under correct vs. corrupted MIDI
+# 2. **Decoding strategy comparison** — proportional / temperature / top_k / nucleus on 2 songs
+
+# %%
+SEED_WORDS = ["love", "night", "run"]
+
+# Load test songs and their MIDI features
+test_df_loaded = load_lyrics_dataset(TEST_CSV_PATH)
+print("Test songs:")
+display(test_df_loaded[["artist", "song_name"]])
+
+midi_path_lookup_test = build_midi_path_lookup(MIDI_DIR)
+test_midi_features = {}
+for row in test_df_loaded.itertuples(index=False):
+    midi_path = find_midi_path(row.artist, row.song_name, midi_path_lookup_test)
+    if midi_path is not None:
+        raw_feat = extract_midi_features(str(midi_path))
+        # Apply the same z-score normalization as the training data
+        test_midi_features[(row.artist, row.song_name)] = (raw_feat - midi_mean) / midi_std
+    else:
+        warnings.warn(f"No MIDI found for test song: {row.artist} - {row.song_name}")
+        test_midi_features[(row.artist, row.song_name)] = None
+
+index_to_word = {idx: word for word, idx in target_word_to_index.items()}
+model_configs = [
+    ("lyrics_only",       lyrics_only_model,       None),       # None → model ignores MIDI
+    ("melody_concat",     melody_concat_model,     "use_midi"),
+    ("melody_hiddeninit", melody_hiddeninit_model, "use_midi"),
+]
+
+# %%
+# --- 5a: Generate lyrics for all test songs, seed words, and models ---
+output_lines = []
+all_generated = {}  # key: (song_key, model_name, seed_word) → lyrics string
+
+for row in test_df_loaded.itertuples(index=False):
+    song_key = (row.artist, row.song_name)
+    midi_feat = test_midi_features[song_key]
+
+    for model_name, model, midi_flag in model_configs:
+        effective_midi = midi_feat if midi_flag == "use_midi" else None
+
+        for seed_word in SEED_WORDS:
+            lyrics = generate_lyrics(
+                model=model,
+                seed_word=seed_word,
+                midi_features=effective_midi,
+                word_to_index=target_word_to_index,
+                index_to_word=index_to_word,
+                word2vec_model=w2v_model,
+                strategy="proportional",
+            )
+            all_generated[(song_key, model_name, seed_word)] = lyrics
+
+            header = f"\n{'='*60}\nSong: {row.artist} - {row.song_name}\nModel: {model_name} | Seed: '{seed_word}'\n{'='*60}"
+            output_lines.append(header)
+            output_lines.append(lyrics)
+
+generated_lyrics_path = RESULTS_DIR / "generated_lyrics.txt"
+generated_lyrics_path.write_text("\n".join(output_lines), encoding="utf-8")
+print(f"Saved {len(all_generated)} generated outputs to {generated_lyrics_path}")
+
+# %%
+# --- 5b: Melody-influence probe ---
+# Keep the seed word fixed; vary what MIDI is fed to the melody models.
+# Strategies: correct MIDI, shuffled MIDI features (same values, shuffled dims),
+# and mismatched MIDI (from a different test song).
+# Metric: Jaccard similarity of generated word-sets.
+
+def jaccard_similarity(text_a: str, text_b: str) -> float:
+    """Jaccard similarity between the word-sets of two texts."""
+    set_a = set(text_a.split())
+    set_b = set(text_b.split())
+    if not set_a and not set_b:
+        return 1.0
+    return len(set_a & set_b) / len(set_a | set_b)
+
+
+probe_seed = SEED_WORDS[0]
+test_songs_list = list(test_df_loaded.itertuples(index=False))
+probe_rows = []
+
+for row in test_songs_list:
+    song_key = (row.artist, row.song_name)
+    correct_midi = test_midi_features[song_key]
+    if correct_midi is None:
+        continue
+
+    # Mismatched MIDI: use another test song's features
+    other_midi = next(
+        (f for (a, s), f in test_midi_features.items() if (a, s) != song_key and f is not None),
+        correct_midi,
+    )
+    shuffled_midi = correct_midi.copy()
+    np.random.shuffle(shuffled_midi)
+
+    for model_name, model, midi_flag in model_configs:
+        if midi_flag != "use_midi":
+            continue  # probe only applies to melody models
+
+        def _gen(midi_feat, _model=model):  # default-arg captures model at definition time
+            return generate_lyrics(
+                model=_model, seed_word=probe_seed,
+                midi_features=midi_feat,
+                word_to_index=target_word_to_index, index_to_word=index_to_word,
+                word2vec_model=w2v_model, strategy="proportional",
+            )
+
+        gen_correct   = _gen(correct_midi)
+        gen_shuffled  = _gen(shuffled_midi)
+        gen_mismatched = _gen(other_midi)
+
+        probe_rows.append({
+            "song":       f"{row.artist} - {row.song_name}",
+            "model":      model_name,
+            "jaccard_shuffled":   round(jaccard_similarity(gen_correct, gen_shuffled),   3),
+            "jaccard_mismatched": round(jaccard_similarity(gen_correct, gen_mismatched), 3),
+        })
+
+probe_df = pd.DataFrame(probe_rows)
+print("\nMelody-Influence Probe Results (Jaccard similarity vs. correct MIDI output):")
+print("Lower = more different output → melody is being used")
+display(probe_df)
+probe_df.to_csv(RESULTS_DIR / "melody_probe_results.csv", index=False)
+
+# --- Probe bar chart ---
+if not probe_df.empty:
+    _model_names = {"melody_concat": "Melody Concat\n(Approach A)", "melody_hiddeninit": "Melody Hidden-Init\n(Approach B)"}
+    _models = probe_df["model"].unique()
+    _bar_colors = ["#4f7cac", "#e07b39"]
+    _dot_colors = ["#111111", "#e74c3c", "#16a085", "#8e44ad", "#d4ac0d"]  # black, red, teal, purple, gold
+
+    fig, axes = plt.subplots(1, 2, figsize=(11, 5), sharey=True)
+    for ax, (col, title) in zip(axes, [
+        ("jaccard_shuffled",    "Shuffled MIDI Features"),
+        ("jaccard_mismatched",  "Mismatched Song MIDI"),
+    ]):
+        means = probe_df.groupby("model")[col].mean().reindex(_models)
+        x_pos = np.arange(len(_models))
+
+        bars = ax.bar(x_pos, means.values, color=_bar_colors, alpha=0.75, width=0.5, zorder=2)
+
+        # individual song dots (drawn before value labels so labels sit on top)
+        dot_maxes = {xi: means.values[xi] for xi in range(len(_models))}
+        for si, song in enumerate(probe_df["song"].unique()):
+            row = probe_df[probe_df["song"] == song]
+            for xi, m in enumerate(_models):
+                v = row.loc[row["model"] == m, col]
+                if not v.empty:
+                    ax.scatter(xi, v.values[0], color=_dot_colors[si % len(_dot_colors)],
+                               s=60, zorder=3, label=song if xi == 0 else "")
+                    dot_maxes[xi] = max(dot_maxes[xi], v.values[0])
+
+        # value labels just above the bar, drawn on top of dots via zorder
+        for xi, bar in enumerate(bars):
+            ax.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.005,
+                    f"{means.values[xi]:.3f}", ha="center", va="bottom",
+                    fontsize=12, fontweight="bold", color="black", zorder=4)
+
+        ax.set_xticks(x_pos)
+        ax.set_xticklabels([_model_names.get(m, m) for m in _models], fontsize=11)
+        ax.set_title(title, fontsize=12)
+        ax.set_ylim(0, 0.35)
+        ax.grid(axis="y", alpha=0.3, zorder=0)
+
+    axes[0].set_ylabel("Jaccard Similarity (lower → melody matters more)", fontsize=11)
+    axes[1].legend(title="Song", fontsize=8, title_fontsize=9, loc="upper right")
+    fig.suptitle("Melody-Influence Probe: Output Similarity Under Corrupted MIDI", fontsize=13, y=1.02)
+    save_current_figure("melody_probe_bar.png")
+
+# %%
+# --- 5c: Decoding strategy comparison ---
+# Use the first 2 test songs, MelodyConcatModel (Approach A), seed='love'
+strategies = ["proportional", "temperature", "top_k", "nucleus"]
+strategy_kwargs = {
+    "proportional": {},
+    "temperature":  {"temperature": 0.7},
+    "top_k":        {"top_k": 50},
+    "nucleus":      {"top_p": 0.9},
+}
+
+decoding_output = []
+for row in test_songs_list[:2]:
+    song_key = (row.artist, row.song_name)
+    midi_feat = test_midi_features[song_key]
+    decoding_output.append(f"\n{'#'*60}\nSong: {row.artist} - {row.song_name} | Seed: 'love'\n{'#'*60}")
+
+    for strat in strategies:
+        lyrics = generate_lyrics(
+            model=melody_concat_model,
+            seed_word="love",
+            midi_features=midi_feat,
+            word_to_index=target_word_to_index,
+            index_to_word=index_to_word,
+            word2vec_model=w2v_model,
+            strategy=strat,
+            **strategy_kwargs[strat],
+        )
+        decoding_output.append(f"\n--- Strategy: {strat} ---\n{lyrics}")
+
+decoding_comparison_text = "\n".join(decoding_output)
+(RESULTS_DIR / "decoding_strategy_comparison.txt").write_text(decoding_comparison_text, encoding="utf-8")
+print(decoding_comparison_text)
+
+# %% [markdown]
+# ## Decoding Strategy Analysis
+#
+# Lexical diversity (type-token ratio) and unique-word count for each strategy,
+# averaged across the 2 test songs.
+
+# %%
+diversity_rows = []
+for row in test_songs_list[:2]:
+    song_key = (row.artist, row.song_name)
+    midi_feat = test_midi_features[song_key]
+    for strat in strategies:
+        lyrics = generate_lyrics(
+            model=melody_concat_model,
+            seed_word="love",
+            midi_features=midi_feat,
+            word_to_index=target_word_to_index,
+            index_to_word=index_to_word,
+            word2vec_model=w2v_model,
+            strategy=strat,
+            **strategy_kwargs[strat],
+        )
+        words = lyrics.split()
+        ttr = len(set(words)) / len(words) if words else 0.0
+        diversity_rows.append({"strategy": strat, "song": f"{row.artist[:15]}..", "ttr": round(ttr, 3), "unique_words": len(set(words))})
+
+diversity_df = pd.DataFrame(diversity_rows)
+diversity_avg = diversity_df.groupby("strategy")[["ttr", "unique_words"]].mean().reindex(strategies)
+display(diversity_avg)
+
+fig, axes = plt.subplots(1, 2, figsize=(11, 4))
+bars0 = axes[0].bar(strategies, diversity_avg["ttr"], color=["#4f7cac", "#e07b39", "#6aab68", "#c45c68"])
+axes[0].set_title("Type-Token Ratio by Decoding Strategy", fontsize=13)
+axes[0].set_ylabel("TTR (higher = more diverse)", fontsize=11)
+axes[0].set_ylim(0, 1.0)
+axes[0].grid(axis="y", alpha=0.3)
+for bar, val in zip(bars0, diversity_avg["ttr"]):
+    axes[0].text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.01,
+                 f"{val:.3f}", ha="center", va="bottom", fontsize=11, color="black", fontweight="bold")
+
+bars1 = axes[1].bar(strategies, diversity_avg["unique_words"], color=["#4f7cac", "#e07b39", "#6aab68", "#c45c68"])
+axes[1].set_title("Unique Words by Decoding Strategy", fontsize=13)
+axes[1].set_ylabel("Unique word count", fontsize=11)
+axes[1].grid(axis="y", alpha=0.3)
+for bar, val in zip(bars1, diversity_avg["unique_words"]):
+    axes[1].text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.3,
+                 f"{val:.1f}", ha="center", va="bottom", fontsize=11, color="black", fontweight="bold")
+
+plt.suptitle("Lexical Diversity across Sampling Strategies (MelodyConcatModel)", fontsize=13, y=1.02)
+save_current_figure("decoding_diversity.png")
 
