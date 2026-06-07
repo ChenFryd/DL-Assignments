@@ -36,9 +36,22 @@ Dataset: download the aligned LFW (LFW-a) crops from <https://talhassner.github.
 
 ## Assignment 3 — Lyrics Generation using RNNs
 
-Design and train RNN-based models to generate song lyrics, using a dataset of lyrics for training and evaluation. Built in PyTorch.
+Design and train LSTM-based language models to generate song lyrics, optionally conditioned on melody (MIDI) features. Built in PyTorch with word2vec embeddings.
+
+**Models:**
+1. **Lyrics-only LSTM** — baseline word-level language model trained solely on lyrics
+2. **Melody-concat LSTM** — melody features concatenated to the word embedding at each timestep
+3. **Melody-hidden-init LSTM** — melody features used to initialise the hidden state; lyrics drive generation
+
+**Experiments:**
+- MIDI analysis — pitch distributions, tempo, instrument counts, and note density across the full MIDI corpus
+- Training curves (loss & perplexity) for all three models
+- Decoding strategy comparison — proportional sampling, temperature sampling, and top-k sampling on the same seed
+- Melody probe — Jaccard similarity between generated lyrics and shuffled/mismatched MIDI inputs to assess how much melody information is actually used
 
 Notebook: [Assignment3/src/assignment3_lyrics_generation.ipynb](Assignment3/src/assignment3_lyrics_generation.ipynb) — paired with [Assignment3/src/assignment3_lyrics_generation.py](Assignment3/src/assignment3_lyrics_generation.py) via jupytext (`--sync` to update either file from the other).
+
+**Data:** `Assignment3/data/lyrics_train_set.csv` / `lyrics_test_set.csv` and `data/midi_files/`.
 
 **Environment:** uses a conda env (`DL_A3_env`), not pip/venv. See [Assignment3/README.md](Assignment3/README.md) for full setup instructions.
 
@@ -93,4 +106,10 @@ pip install -r requirements.txt
 For Assignment 2 (PyTorch + extras):
 ```bash
 pip install -r Assignment2/requirements.txt
+```
+
+For Assignment 3 (conda env required):
+```bash
+conda env create -f Assignment3/conda_requirement.yaml
+conda activate DL_A3_env
 ```
