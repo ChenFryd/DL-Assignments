@@ -62,6 +62,33 @@ conda activate DL_A3_env
 jupyter lab
 ```
 
+## Assignment 4 — Generative Models with GANs
+
+Design and train a standard GAN and a Conditional GAN (cGAN) on the Adult Census Income tabular dataset. Built in PyTorch.
+
+**Sections:**
+1. **GAN + cGAN Training** — train both models across 3 seeds; evaluate with detection accuracy and efficacy metrics
+2. **Discrete Features** — compare Softmax vs. Gumbel-Softmax with the straight-through estimator for categorical columns
+3. **Mode Collapse** — induce collapse via a 5:1 D:G update ratio, diagnose it with a coverage ratio metric, and mitigate it with minibatch standard deviation
+4. **Open-Ended: Spectral Normalization** — apply spectral normalization to the discriminator and compare training stability against the baseline
+
+Notebook: [Assignment4/gan_assignment.ipynb](Assignment4/gan_assignment.ipynb) — generated from [Assignment4/gan_assignment.py](Assignment4/gan_assignment.py) via jupytext. Regenerate with:
+
+```bash
+jupytext --to notebook --set-kernel python3 Assignment4/gan_assignment.py
+```
+
+**Dataset:** `Assignment4/adult.arff` (included). Expected runtime: ~15 min on GPU, ~60–90 min on CPU.
+
+**Environment:** uses a conda env (`DL_A4_env`). See [Assignment4/README.md](Assignment4/README.md) for full setup instructions.
+
+```bash
+cd Assignment4
+conda env create -f conda_requirement.yaml
+conda activate DL_A4_env
+jupyter lab
+```
+
 ---
 
 # Extensions
@@ -112,4 +139,10 @@ For Assignment 3 (conda env required):
 ```bash
 conda env create -f Assignment3/conda_requirement.yaml
 conda activate DL_A3_env
+```
+
+For Assignment 4 (conda env required):
+```bash
+conda env create -f Assignment4/conda_requirement.yaml
+conda activate DL_A4_env
 ```

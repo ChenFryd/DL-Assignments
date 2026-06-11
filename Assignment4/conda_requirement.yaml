@@ -1,0 +1,33 @@
+name: DL_A4_env
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+
+  - numpy
+  - pandas
+  - scipy
+  - scikit-learn
+  - matplotlib
+  - seaborn
+  - jupyterlab
+  - notebook
+  - ipykernel
+  - jupytext
+  - pip
+  - pip:
+    - --extra-index-url https://download.pytorch.org/whl/cu124
+    - torch==2.5.1+cu124
+    - torchvision==0.20.1+cu124
+    - torchaudio==2.5.1+cu124
+
+
+# Use:
+# cd Assignment4
+# conda env create -f conda_requirement.yaml
+# conda activate DL_A4_env
+
+# Jupytext sync:
+# conda run -n DL_A4_env jupytext --to notebook --set-kernel python3 gan_assignment.py
