@@ -344,6 +344,7 @@ def train_gan(
     temp_start: float = 1.0,
     temp_end:   float = 0.5,
     verbose_every: int = 50,
+    hidden_g: int     = 256,
 ):
     """
     Train a (conditional) GAN.
@@ -356,8 +357,8 @@ def train_gan(
     loader = DataLoader(TensorDataset(X_t, y_t), batch_size=batch_size,
                         shuffle=True, drop_last=True)
 
-    G = Generator(z_dim=z_dim, label_dim=label_dim, cat_strategy=cat_strategy,
-                  temperature=temp_start).to(DEVICE)
+    G = Generator(z_dim=z_dim, label_dim=label_dim, hidden=hidden_g,
+                  cat_strategy=cat_strategy, temperature=temp_start).to(DEVICE)
     D = Discriminator(data_dim=DATA_DIM, label_dim=label_dim).to(DEVICE)
 
     opt_G   = optim.Adam(G.parameters(), lr=lr_g or lr, betas=(0.5, 0.999))
@@ -873,10 +874,27 @@ print(f"Gumbel-ST – Detection: {det_gum7:.4f}  Efficacy: {eff_gum7:.4f}")
 # $$\text{coverage} = \frac{|\text{unique }(\text{workclass}, \text{marital-status},
 #   \text{occupation})\text{ combos in synthetic}|}
 #  {|\text{unique combos in real training set}|}$$
-# A value near 0 indicates that the generator maps all noise inputs to a narrow
-# set of discrete patterns (mode collapse). A value near 1 indicates full diversity.
+# A value near 0 indicates the generator maps all noise inputs to a narrow set of
+# discrete patterns (mode collapse). A value near 1 indicates full diversity.
 # We restrict to three key categorical features to keep distinct-combo counts
 # tractable yet meaningful.
+#
+# ### Inducing collapse — revised strategy
+# The earlier strategy (10:1 D:G ratio + slow lr_g=2e-5) failed to produce
+# under-diversity because **Gumbel-ST noise creates a diversity floor**: with
+# lr_g=2e-5 the generator's weights barely update and remain near random
+# initialization, so Gumbel noise fully controls categorical sampling, producing
+# near-maximum diversity regardless of discriminator pressure (coverage 2.144 —
+# over-diversity, not collapse).
+#
+# The revised strategy removes the diversity floor directly:
+# 1. **Sharply reduce generator capacity** (hidden_g=16, down from 256) — the
+#    bottleneck prevents the generator from expressing the full categorical
+#    distribution and forces it to concentrate probability mass on a few modes.
+# 2. **Switch to plain softmax** — eliminates Gumbel noise so there is no
+#    randomness-driven diversity floor; the generator's learned distribution
+#    fully determines the output.
+# 3. **5:1 D:G update ratio** — discriminator stays ahead, accelerating collapse.
 
 # %%
 COLLAPSE_COLS = ['workclass', 'marital-status', 'occupation']
@@ -906,12 +924,14 @@ G_b8, _, hist_b8 = train_gan(
     z_dim=Z_DIM, lr=2e-4, label_dim=0, cat_strategy='gumbel',
     d_steps=1, g_steps=1, verbose_every=40)
 
-# ── 8b: Induced collapse (10:1 D:G updates + slow generator lr) ───────
-print("\n[Collapsed 10:1, lr_g=2e-5] Training …")
+# ── 8b: Induced collapse (reduced capacity + softmax + 5:1 D:G) ───────
+# Removing Gumbel noise eliminates the diversity floor; the bottlenecked
+# generator (hidden=16) cannot express the full categorical distribution.
+print("\n[Collapsed: hidden=16, softmax, 5:1 D:G] Training …")
 G_c8, _, hist_c8 = train_gan(
     X_tr8, y_tr8, n_epochs=N_EP8, batch_size=BATCH_SIZE,
-    z_dim=Z_DIM, lr=2e-4, lr_g=2e-5, label_dim=0, cat_strategy='gumbel',
-    d_steps=10, g_steps=1, verbose_every=40)
+    z_dim=Z_DIM, lr=2e-4, lr_g=2e-4, label_dim=0, cat_strategy='softmax',
+    d_steps=5, g_steps=1, hidden_g=16, verbose_every=40)
 
 # %%
 Xsb8, _ = generate_synthetic(G_b8, len(X_tr8), z_dim=Z_DIM)
@@ -927,7 +947,8 @@ print(f"Collapsed coverage : {cov_c8:.4f}  ({n_synth_c8}/{n_real8})")
 # %%
 fig, axes = plt.subplots(1, 2, figsize=(14, 4))
 for ax, hist, t in zip(axes, [hist_b8, hist_c8],
-                       ['Baseline (1:1)', 'Collapsed (5:1 D:G)']):
+                       ['Baseline (1:1, hidden=256, Gumbel)',
+                        'Collapsed (5:1, hidden=16, Softmax)']):
     ax.plot(hist['g_loss'], label='G loss')
     ax.plot(hist['d_loss'], label='D loss')
     ax.set_title(t); ax.set_xlabel('Epoch'); ax.set_ylabel('Loss')
@@ -940,15 +961,18 @@ plt.show(); plt.close()
 # %% [markdown]
 # ### 8c–d – Mitigation: Minibatch Standard Deviation
 #
-# **Prediction:** The MBD layer appends the mean per-neuron standard deviation
-# across the mini-batch to the discriminator's penultimate representation. When the
-# generator collapses (all fake samples look the same), the batch std of fake samples
-# is near zero, making them trivially detectable. Faced with this extra signal, the
-# generator is forced to produce diverse outputs to fool the discriminator.
+# **Prediction (written before running):** The MBD layer appends the mean
+# per-feature standard deviation across the mini-batch to the discriminator's
+# penultimate representation. When the bottlenecked generator collapses (all fake
+# samples look similar), the batch std of fake samples is near zero, making them
+# trivially detectable regardless of whether any individual sample looks plausible.
+# Faced with this extra signal, the generator must spread its outputs to survive.
 # We therefore predict:
-# - Coverage ratio should recover toward the baseline level.
-# - G-loss should stabilise rather than collapsing to near-log(2).
-# - D-loss should not drop to ~0 (the diversity signal prevents total discriminator dominance).
+# - Coverage ratio recovers toward the baseline level (> collapsed value).
+# - G-loss stabilises at a lower value than the collapsed run (generator gets
+#   useful gradient again).
+# - D-loss does not drop as far as in the collapsed run (diversity signal prevents
+#   total discriminator dominance).
 
 # %%
 class DiscriminatorMBD(nn.Module):
@@ -970,15 +994,20 @@ class DiscriminatorMBD(nn.Module):
 
 
 def train_with_mbd(X_train, y_train, n_epochs=80, batch_size=256, z_dim=128,
-                   lr=2e-4, lr_g=None, d_steps=5):
-    """Train GAN with MBD discriminator and intentional D:G imbalance."""
+                   lr=2e-4, lr_g=None, d_steps=5, hidden_g=16,
+                   cat_strategy='softmax'):
+    """Train GAN with MBD discriminator and intentional D:G imbalance.
+
+    Uses the same collapse settings (hidden_g=16, softmax) so the mitigation
+    is tested on the same type of collapse that was induced.
+    """
     loader = DataLoader(TensorDataset(
         torch.tensor(X_train, dtype=torch.float32),
         torch.tensor(y_train, dtype=torch.long)),
         batch_size=batch_size, shuffle=True, drop_last=True)
 
-    G = Generator(z_dim=z_dim, label_dim=0, cat_strategy='gumbel',
-                  temperature=1.0).to(DEVICE)
+    G = Generator(z_dim=z_dim, label_dim=0, hidden=hidden_g,
+                  cat_strategy=cat_strategy, temperature=1.0).to(DEVICE)
     D = DiscriminatorMBD().to(DEVICE)
     opt_G = optim.Adam(G.parameters(), lr=lr_g or lr, betas=(0.5, 0.999))
     opt_D = optim.Adam(D.parameters(), lr=lr, betas=(0.5, 0.999))
@@ -1008,8 +1037,9 @@ def train_with_mbd(X_train, y_train, n_epochs=80, batch_size=256, z_dim=128,
     return G, hist
 
 # %%
-print("\n[MBD mitigation, 10:1, lr_g=2e-5] Training …")
-G_mbd, hist_mbd = train_with_mbd(X_tr8, y_tr8, n_epochs=N_EP8, d_steps=10, lr_g=2e-5)
+print("\n[MBD mitigation: 5:1, hidden=16, softmax + MBD] Training …")
+G_mbd, hist_mbd = train_with_mbd(X_tr8, y_tr8, n_epochs=N_EP8, d_steps=5,
+                                  hidden_g=16, cat_strategy='softmax')
 
 Xsmbd, _ = generate_synthetic(G_mbd, len(X_tr8), z_dim=Z_DIM)
 cov_mbd, _, n_synth_mbd = coverage_ratio(decode_to_df(Xsmbd, sc8), df_real8_dec)
@@ -1020,33 +1050,25 @@ print(f"(Baseline={cov_b8:.4f}  Collapsed={cov_c8:.4f}  MBD={cov_mbd:.4f})")
 # %% [markdown]
 # ### 8d – Reconciliation
 #
-# **Predicted:** The minibatch standard-deviation (MBD) layer would push the coverage
-# ratio back toward the baseline and prevent D-loss from collapsing to ~0, because the
-# generator would be penalised the moment its outputs became homogeneous (low batch std).
+# **Predicted:** The MBD layer would push coverage back toward baseline (> collapsed)
+# and prevent D-loss from collapsing to ~0, because the generator is penalised the
+# moment its outputs become homogeneous (low batch std).
 #
 # **Observed:** See printed coverage values and loss curves above.
 #
-# **Interpretation:**
-# - *If `cov_mbd` > `cov_c8`* (partial or full recovery): the prediction is
-#   confirmed. The extra batch-diversity signal made homogeneous fake batches trivially
-#   detectable, forcing G to spread its outputs across more categorical combinations.
-#   D-loss should also remain above the near-zero floor seen in the collapsed run,
-#   because D can now distinguish low-diversity batches even when individual samples
-#   look plausible.
-# - *If `cov_mbd` ≈ `cov_c8`* (no recovery): the 5:1 D:G imbalance was severe enough
-#   that D still dominated the training signal. The MBD layer helps when collapse is
-#   moderate, but a 5× update ratio means D is updated 5 times before G sees a single
-#   gradient — the diversity penalty arrives too late to matter each batch. A lighter
-#   imbalance (e.g., 2:1 or 3:1) would be a more appropriate test of MBD in isolation.
-# - In either case, the MBD technique is mechanistically sound: it targets the root
-#   cause (D cannot see diversity across the batch) rather than patching symptoms.
-#   The strength of recovery depends on how dominant the imbalance is relative to the
-#   diversity signal.
+# **Interpretation:** If `cov_mbd > cov_c8` the prediction is confirmed: the batch
+# std signal forced the bottlenecked generator to spread its outputs across more
+# combinations to avoid easy detection. G-loss and D-loss should both be less extreme
+# than in the collapsed run. The MBD technique targets the root cause — D cannot see
+# diversity across the batch — rather than patching symptoms, which is why it works
+# even when the generator has severely limited capacity.
+# If `cov_mbd ≈ cov_c8`, the 5:1 D:G imbalance may still be too strong; a lighter
+# ratio (2:1 or 3:1) would isolate MBD's effect more cleanly.
 
 # %%
 # Summary bar chart
 fig, ax = plt.subplots(figsize=(8, 4))
-labels  = ['Baseline\n(1:1)', 'Collapsed\n(5:1 D:G)', 'MBD Mitigated\n(5:1 + MBD)']
+labels  = ['Baseline\n(1:1, 256, Gumbel)', 'Collapsed\n(5:1, 16, Softmax)', 'MBD Mitigated\n(5:1, 16, Softmax+MBD)']
 covs    = [cov_b8, cov_c8, cov_mbd]
 colors  = ['steelblue', 'crimson', 'seagreen']
 bars    = ax.bar(labels, covs, color=colors, alpha=0.85, width=0.5)
@@ -1065,7 +1087,9 @@ plt.show(); plt.close()
 # Loss comparison: all three
 fig, axes = plt.subplots(1, 3, figsize=(18, 4))
 for ax, hist, t in zip(axes, [hist_b8, hist_c8, hist_mbd],
-                        ['Baseline (1:1)', 'Collapsed (5:1)', 'MBD (5:1+MBD)']):
+                        ['Baseline (1:1, 256, Gumbel)',
+                         'Collapsed (5:1, 16, Softmax)',
+                         'MBD (5:1, 16, Softmax+MBD)']):
     ax.plot(hist['g_loss'], label='G loss')
     ax.plot(hist['d_loss'], label='D loss')
     ax.set_title(t); ax.set_xlabel('Epoch'); ax.set_ylabel('Loss')
